@@ -55,7 +55,7 @@ class ADAudioSysRecordThread : Thread() {
             mRecordBuffer = ByteArray(recordBufferSize)
             Log.i(TAG, "当前设备采样率:${sampleRate}Hz,${if (channel == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
             try {
-                mAudioRecord = AudioRecord(AUDIO_INPUT, sampleRate, channel, AUDIO_ENCODING, recordBufferSize * 2)
+                mAudioRecord = AudioRecord(AUDIO_INPUT, sampleRate, channel, AUDIO_ENCODING, recordBufferSize)
             } catch (e: IllegalArgumentException) {
                 Log.e(TAG, "创建AudioRecord失败", e)
             }
@@ -97,30 +97,20 @@ class ADAudioSysRecordThread : Thread() {
         }
 
         var failCount = 0
-        var offset = 0
-
         while (isRecord && mAudioRecord != null && failCount <= 5) {
             val timeMills = System.currentTimeMillis()
-            val readSize = mAudioRecord!!.read(mRecordBuffer, offset, mRecordBuffer.size - offset)
-            if (readSize != mRecordBuffer.size - offset) {
-                if (readSize <= 0) {
-                    Log.e(TAG, "读取pcm数据失败, AudioRecord错误码:$readSize")
-                    failCount++
-                } else {
-                    Log.e(TAG, "读取长度不够 bufferSize:${mRecordBuffer.size} readSize:$readSize")
-                    offset += readSize
-                }
+            val readSize = mAudioRecord!!.read(mRecordBuffer, 0, mRecordBuffer.size)
+            if (readSize <= 0) {
+                Log.e(TAG, "读取pcm数据失败, AudioRecord错误码:$readSize")
+                failCount++
             } else {
                 failCount = 0
-                offset = 0
-
                 if (isMute) {
                     Arrays.fill(mRecordBuffer, 0.toByte())
                 }
                 callback.recordPcmData?.invoke(mRecordBuffer, mRecordBuffer.size, timeMills)
             }
         }
-
         Log.i(TAG, "音频录制停止")
         unInit()
         if (failCount > 5) {

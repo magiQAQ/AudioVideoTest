@@ -16,25 +16,39 @@ object ADAudioManager {
         mRecordThread = ADAudioSysRecordThread()
         mRecordThread?.setSubscriber {
             onRecordStart {
-                val dir = context.getExternalFilesDir(FILE_DIR_NAME)
-                val file = File(dir,"fileName")
-                fos = FileOutputStream(file)
+                try {
+                    val dir = context.getExternalFilesDir(FILE_DIR_NAME)
+                    val file = File(dir, fileName)
+                    fos = FileOutputStream(file)
+                } catch (e: IOException) {
+                    Log.e(TAG, "pcm音频文件创建失败", e)
+                }
             }
             onRecordPcmData { data, length, timeMills ->
                 try {
                     fos!!.write(data)
                 } catch (e: IOException) {
-                    Log.e(TAG, "写入失败", e)
+                    Log.e(TAG, "pcm数据写入文件失败", e)
                 }
             }
             onRecordStop {
-                fos!!.flush()
-                fos!!.close()
+                try {
+                    fos!!.flush()
+                    fos!!.close()
+                } catch (e: IOException) {
+                    Log.e(TAG, "文件输出流关闭失败", e)
+                }
             }
             onRecordError { errorCode, errorMsg ->
-                fos?.flush()
-                fos?.close()
+                try {
+                    fos?.flush()
+                    fos?.close()
+                } catch (e: IOException) {
+                    Log.e(TAG, "文件输出流关闭失败", e)
+                }
             }
         }
     }
+
+
 }
