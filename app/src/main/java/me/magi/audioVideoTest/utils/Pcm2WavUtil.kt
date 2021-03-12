@@ -13,7 +13,6 @@ fun pcmFile2WavFile() {
  */
 @Throws(IOException::class)
 private fun getWaveFileHeader(
-    fos: FileOutputStream,
     totalPcmLen: Long,
     sampleRate: Long,
     channels: Int,
@@ -75,5 +74,5 @@ private fun getWaveFileHeader(
     header[41] = (totalPcmLen shr 8 and 0xff).toByte()
     header[42] = (totalPcmLen shr 16 and 0xff).toByte()
     header[43] = (totalPcmLen shr 24 and 0xff).toByte()
-    fos.write(header, 0, 44)
+    return header
 }
