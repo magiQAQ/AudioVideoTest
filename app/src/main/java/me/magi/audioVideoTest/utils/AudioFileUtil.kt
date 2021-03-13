@@ -1,24 +1,43 @@
 package me.magi.audioVideoTest.utils
 
+import android.content.Context
+import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 
-@Throws(IOException::class)
-fun pcmFile2WavFile() {
+const val FILE_DIR_NAME = "AUDIO_TEST"
 
+@Throws(IOException::class)
+fun pcmFile2WavFile(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int, bufferSize: Int) {
+    if (!pcmFile.exists()) throw IOException("pcm文件不存在")
+    if (wavFile.exists()) {
+        wavFile.delete()
+    }
+    wavFile.createNewFile()
+    val fis = FileInputStream(pcmFile)
+    val fos = FileOutputStream(wavFile)
+    val header = getWaveFileHeader(pcmFile.length(), sampleRate, channels)
+    fos.write(header)
+    val array = ByteArray(bufferSize)
+    while (fis.read(array)!=-1) {
+        fos.write(array)
+    }
+    fos.flush()
+    fis.close()
+    fos.close()
 }
 
 /**
  * 加入wav文件头 , 采样深度默认16bit
  */
-@Throws(IOException::class)
 private fun getWaveFileHeader(
     totalPcmLen: Long,
-    sampleRate: Long,
+    sampleRate: Int,
     channels: Int,
 ): ByteArray {
     // 音频采样速率
-    val bytePerSecond = sampleRate * channels * 16 / 8
+    val bytePerSecond = sampleRate.toLong() * channels * 16 / 8
     val totalDataLen = totalPcmLen + 36
     val header = ByteArray(44)
     header[0] = 'R'.toByte() // RIFF
@@ -75,4 +94,13 @@ private fun getWaveFileHeader(
     header[42] = (totalPcmLen shr 16 and 0xff).toByte()
     header[43] = (totalPcmLen shr 24 and 0xff).toByte()
     return header
+}
+
+@Throws(IOException::class)
+fun getAudioDir(context: Context): File{
+    val dir = context.getExternalFilesDir(FILE_DIR_NAME) ?: throw IOException("外部存储当前不可用")
+    if (!dir.exists()) {
+        dir.mkdirs()
+    }
+    return dir
 }

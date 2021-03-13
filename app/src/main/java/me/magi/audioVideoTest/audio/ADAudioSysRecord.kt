@@ -26,11 +26,20 @@ class ADAudioSysRecordThread : Thread() {
     private lateinit var mRecordBuffer: ByteArray
     private var isRecord = false
     private var isMute = false
+    private var mChannelCount = 0
+    private var mSampleRate = 0
     private var callback = ADRecordSubscriber()
+
+    // 外部发生错误需要中断任务的标志
+    private var isOutError = false
 
     fun setSubscriber(subscriber: (ADRecordSubscriber.() -> Unit)) {
         callback.subscriber()
     }
+
+    fun getChannelCount() = mChannelCount
+    fun getSampleRate() = mSampleRate
+    fun getBufferSize() = mRecordBuffer.size
 
     private fun init() {
         var recordBufferSize = 0
@@ -56,6 +65,9 @@ class ADAudioSysRecordThread : Thread() {
             Log.i(TAG, "当前设备采样率:${sampleRate}Hz,${if (channel == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
             try {
                 mAudioRecord = AudioRecord(AUDIO_INPUT, sampleRate, channel, AUDIO_ENCODING, recordBufferSize)
+                mSampleRate = sampleRate
+                mChannelCount = if (channel == AudioFormat.CHANNEL_IN_STEREO) 2 else 1
+                Log.i(TAG, "当前设备采样率:${sampleRate}Hz, 声道数: $mChannelCount")
             } catch (e: IllegalArgumentException) {
                 Log.e(TAG, "创建AudioRecord失败", e)
             }
@@ -84,9 +96,17 @@ class ADAudioSysRecordThread : Thread() {
         isRecord = false
     }
 
+    internal fun stopWithError() {
+        isOutError = true
+        isRecord = false
+    }
+
     override fun run() {
         if (isRecord) {
             Log.i(TAG, "录音已经进行")
+            return
+        }
+        if (isOutError) {
             return
         }
         init()
@@ -95,9 +115,12 @@ class ADAudioSysRecordThread : Thread() {
             isRecord = true
             callback.recordStart?.invoke()
         }
-
+        if (isOutError) {
+            unInit()
+            return
+        }
         var failCount = 0
-        while (isRecord && mAudioRecord != null && failCount <= 5) {
+        while (isRecord && !isOutError && mAudioRecord != null && failCount <= 5) {
             val timeMills = System.currentTimeMillis()
             val readSize = mAudioRecord!!.read(mRecordBuffer, 0, mRecordBuffer.size)
             if (readSize <= 0) {
@@ -108,11 +131,12 @@ class ADAudioSysRecordThread : Thread() {
                 if (isMute) {
                     Arrays.fill(mRecordBuffer, 0.toByte())
                 }
-                callback.recordPcmData?.invoke(mRecordBuffer, mRecordBuffer.size, timeMills)
+                callback.recordPcmData?.invoke(mRecordBuffer, readSize, timeMills)
             }
         }
         Log.i(TAG, "音频录制停止")
         unInit()
+
         if (failCount > 5) {
             Log.i(TAG, "读取pcm数据失败")
             callback.recordError?.invoke(-2, "读取pcm数据失败")
