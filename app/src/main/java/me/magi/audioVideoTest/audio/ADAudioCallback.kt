@@ -2,7 +2,7 @@ package me.magi.audioVideoTest.audio
 
 import java.io.File
 
-interface ADAudioRecordCallback {
+interface ADAudioCallback {
     fun onError(errorCode: Int, errorMsg: String)
-    fun onRecordFinish(wavFile: File)
+    fun onSaveFinish(wavFile: File)
 }

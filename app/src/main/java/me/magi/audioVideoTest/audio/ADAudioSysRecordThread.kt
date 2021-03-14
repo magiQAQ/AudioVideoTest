@@ -6,7 +6,7 @@ import android.media.MediaRecorder
 import android.util.Log
 import java.util.*
 
-class ADAudioSysRecordThread : Thread() {
+internal class ADAudioSysRecordThread : Thread() {
 
     private val TAG = this::class.simpleName
 
@@ -28,20 +28,18 @@ class ADAudioSysRecordThread : Thread() {
     private var isMute = false
     private var mChannelCount = 0
     private var mSampleRate = 0
-    private var callback = ADRecordSubscriber()
+    private var mCallback: ADRecordCallback? = null
 
-    // 外部发生错误需要中断任务的标志
-    private var isOutError = false
-
-    fun setSubscriber(subscriber: (ADRecordSubscriber.() -> Unit)) {
-        callback.subscriber()
+    internal fun setCallback(callback: ADRecordCallback) {
+        mCallback = callback
     }
 
-    fun getChannelCount() = mChannelCount
-    fun getSampleRate() = mSampleRate
-    fun getBufferSize() = mRecordBuffer.size
+    internal fun getChannelCount() = mChannelCount
+    internal fun getSampleRate() = mSampleRate
+    internal fun getBufferSize() = mRecordBuffer.size
 
     private fun init() {
+        Log.i(TAG, "init")
         var recordBufferSize = 0
         var sampleRate = -1
         var channel = -1
@@ -73,13 +71,13 @@ class ADAudioSysRecordThread : Thread() {
             }
         } else {
             Log.i(TAG, "不支持当前设备录音")
-            callback.recordError?.invoke(-1, "不支持当前设备录音")
+            mCallback?.onRecordError(-1, "不支持当前设备录音")
         }
 
     }
 
     private fun unInit() {
-        isRecord = false
+        Log.i(TAG, "unInit")
         mAudioRecord?.let {
             Log.i(TAG, "开始释放AudioRecord")
             it.stop()
@@ -88,16 +86,11 @@ class ADAudioSysRecordThread : Thread() {
         mAudioRecord = null
     }
 
-    fun setMute(isMute: Boolean) {
+    internal fun setMute(isMute: Boolean) {
         this.isMute = isMute
     }
 
-    fun stopRecord() {
-        isRecord = false
-    }
-
-    internal fun stopWithError() {
-        isOutError = true
+    internal fun stopRecord() {
         isRecord = false
     }
 
@@ -106,21 +99,15 @@ class ADAudioSysRecordThread : Thread() {
             Log.i(TAG, "录音已经进行")
             return
         }
-        if (isOutError) {
-            return
-        }
         init()
         mAudioRecord?.let {
-            it.startRecording()
             isRecord = true
-            callback.recordStart?.invoke()
-        }
-        if (isOutError) {
-            unInit()
-            return
+            it.startRecording()
+            mCallback?.onRecordStart()
         }
         var failCount = 0
-        while (isRecord && !isOutError && mAudioRecord != null && failCount <= 5) {
+        Log.i(TAG, "音频录制开始")
+        while (isRecord && mAudioRecord != null && failCount <= 5) {
             val timeMills = System.currentTimeMillis()
             val readSize = mAudioRecord!!.read(mRecordBuffer, 0, mRecordBuffer.size)
             if (readSize <= 0) {
@@ -131,18 +118,19 @@ class ADAudioSysRecordThread : Thread() {
                 if (isMute) {
                     Arrays.fill(mRecordBuffer, 0.toByte())
                 }
-                callback.recordPcmData?.invoke(mRecordBuffer, readSize, timeMills)
+                mCallback?.onRecordPcmData(mRecordBuffer, readSize, timeMills)
             }
         }
-        Log.i(TAG, "音频录制停止")
-        unInit()
-
         if (failCount > 5) {
             Log.i(TAG, "读取pcm数据失败")
-            callback.recordError?.invoke(-2, "读取pcm数据失败")
-        } else {
-            callback.recordStop?.invoke()
+            mCallback?.onRecordError(-2, "多次读取pcm数据失败")
         }
+        isRecord = false
+        Log.i(TAG, "音频录制停止")
+        mAudioRecord?.let {
+            mCallback?.onRecordStop()
+        }
+        unInit()
     }
 
 }
