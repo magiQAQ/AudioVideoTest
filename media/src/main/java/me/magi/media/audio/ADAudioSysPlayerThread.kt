@@ -4,6 +4,10 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.util.Log
+import me.magi.media.utils.getChannelConfig
+import me.magi.media.utils.getSimpleRate
+import me.magi.media.utils.getWavFileHeader
+import me.magi.media.utils.isWavFile
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -12,88 +16,98 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
 
     private val TAG = this::class.simpleName
 
-    private var mCallback: ADPlayerCallback? = null
-
     private var mAudioTrack: AudioTrack? = null
-
-    private var channelType: Int = 0
-    private var sampleRate: Int = 0
-    private var bufferSize: Int = 0
+    private lateinit var fis: FileInputStream
+    private lateinit var mPlayBuffer: ByteArray
+    private var isPlaying = false
+    private var mChannelConfig: Int = 0
+    private var mSampleRate: Int = 0
+    private val mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT
+    private var mCallback: ADPlayerCallback? = null
 
     private fun readFileHeadInfo() {
         try {
-            val fis = FileInputStream(file)
-            val wavHead = ByteArray(44)
-            val readSize = fis.read(wavHead, 0, wavHead.size)
-            fis.close()
-            if (readSize != 44) {
+            fis = FileInputStream(file)
+            val wavHead = getWavFileHeader(fis)
+            if (wavHead == null) {
                 mCallback?.onPlayError(30, "文件头信息不足44位")
                 return
             }
             if (!isWavFile(wavHead)) {
-                mCallback?.onPlayError(30, "不是标准的wav文件")
-            }
-            channelType = getChannelType(wavHead)
-            sampleRate = getSimpleRate(wavHead)
-            bufferSize =
-                AudioTrack.getMinBufferSize(sampleRate, channelType, AudioFormat.ENCODING_PCM_16BIT)
-            if (bufferSize <= 0) {
-                mCallback?.onPlayError(31, "无法获取有效的缓冲流")
+                mCallback?.onPlayError(30, "不是wav文件")
                 return
             }
+            mChannelConfig = getChannelConfig(wavHead)
+            mSampleRate = getSimpleRate(wavHead)
         } catch (e: IOException) {
             mCallback?.onPlayError(30, "文件读取失败")
         }
     }
 
-    private fun isWavFile(wavHead: ByteArray): Boolean {
-        var riff = ""
-        var wave = ""
-        for (index in 0..3) {
-            riff += wavHead[index].toChar()
-        }
-        for (index in 8..11) {
-            wave += wavHead[index].toChar()
-        }
-        return riff == "RIFF" && wave == "WAVE"
-    }
-
-    private fun getChannelType(wavHead: ByteArray): Int {
-        return if (wavHead[22].toInt() == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
-    }
-
-    private fun getSimpleRate(wavHead: ByteArray): Int {
-        return wavHead[24].toInt() + wavHead[25].toInt() shl 8 + wavHead[26].toInt() shl 16 + wavHead[27].toInt() shl 24
-    }
-
     private fun init() {
         Log.i(TAG, "init")
-        mAudioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(channelType)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferSize)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
+        readFileHeadInfo()
+        val bufferSize =
+            AudioTrack.getMinBufferSize(mSampleRate, mChannelConfig, mAudioEncoding)
+        if (bufferSize <= 0) {
+            mCallback?.onPlayError(31, "无法获取有效的缓冲流")
+            return
+        }
+        try {
+            mAudioTrack = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(mAudioEncoding)
+                        .setSampleRate(mSampleRate)
+                        .setChannelMask(mChannelConfig)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+        } catch (e: Exception) {
+            Log.e(TAG, "创建AudioTrack失败")
+        }
+        mPlayBuffer = ByteArray(bufferSize)
     }
 
     private fun unInit() {
         Log.i(TAG, "unInit")
+        fis.close()
         mAudioTrack?.let {
             Log.i(TAG, "开始释放AudioTrack")
-            it.stop()
             it.release()
         }
         mAudioTrack = null
+    }
+
+    override fun run() {
+        if (isPlaying) {
+            Log.i(TAG, "播放正在进行")
+            return
+        }
+        init()
+        mAudioTrack?.let {
+            isPlaying = true
+            mCallback?.onPlayStart()
+        }
+        var readSize = 0
+        Log.i(TAG, "音频播放开始")
+        while (mAudioTrack!=null && isPlaying && fis.read(mPlayBuffer).also { readSize = it } > 0) {
+            mAudioTrack!!.write(mPlayBuffer, 0, readSize)
+            mCallback?.onPlayTime(0,0)
+        }
+        isPlaying = false
+        Log.i(TAG, "音频播放结束")
+        mAudioTrack?.let {
+            mCallback?.onPlayEnd()
+        }
+        unInit()
     }
 }

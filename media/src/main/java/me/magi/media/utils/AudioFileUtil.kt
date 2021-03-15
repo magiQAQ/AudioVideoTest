@@ -1,10 +1,12 @@
 package me.magi.media.utils
 
 import android.content.Context
+import android.media.AudioFormat
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.lang.StringBuilder
 
 const val FILE_DIR_NAME = "AUDIO_TEST"
 
@@ -20,7 +22,7 @@ fun pcmFile2WavFile(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int
     val header = getWaveFileHeader(pcmFile.length(), sampleRate, channels)
     fos.write(header)
     val array = ByteArray(bufferSize)
-    while (fis.read(array)!=-1) {
+    while (fis.read(array) != -1) {
         fos.write(array)
     }
     fos.flush()
@@ -97,10 +99,54 @@ private fun getWaveFileHeader(
 }
 
 @Throws(IOException::class)
-fun getAudioDir(context: Context): File{
+fun getAudioDir(context: Context): File {
     val dir = context.getExternalFilesDir(FILE_DIR_NAME) ?: throw IOException("外部存储当前不可用")
     if (!dir.exists()) {
         dir.mkdirs()
     }
     return dir
+}
+
+/**
+ * 获取wav文件头部信息
+ */
+@Throws(IOException::class)
+fun getWavFileHeader(fis: FileInputStream): ByteArray? {
+    val head = ByteArray(44)
+    val readSize = fis.read(head)
+    return if (readSize < 44) null else head
+}
+
+/**
+ * 判断是否为wav文件
+ */
+fun isWavFile(wavHead: ByteArray): Boolean {
+    val builder = StringBuilder()
+    for (index in 0..3) { builder.append(wavHead[index]) }
+    if (builder.toString()!="RIFF")  return false
+    builder.clear()
+    for (index in 8..11) { builder.append(wavHead[index]) }
+    if (builder.toString()!="WAVE") return false
+    builder.clear()
+    for (index in 12..15) { builder.append(wavHead[index]) }
+    if (builder.toString()!="fmt ") return false
+    builder.clear()
+    for (index in 36..39) { builder.append(wavHead[index]) }
+    if (builder.toString()!="data") return false
+    builder.clear()
+    return true
+}
+
+/**
+ * 获取wav声道信息
+ */
+fun getChannelConfig(wavHead: ByteArray): Int {
+    return if (wavHead[22].toInt() == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
+}
+
+/**
+ * 获取wav采样率
+ */
+fun getSimpleRate(wavHead: ByteArray): Int {
+    return wavHead[24].toInt() + wavHead[25].toInt() shl 8 + wavHead[26].toInt() shl 16 + wavHead[27].toInt() shl 24
 }

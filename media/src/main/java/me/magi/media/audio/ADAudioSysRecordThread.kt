@@ -10,24 +10,17 @@ internal class ADAudioSysRecordThread : Thread() {
 
     private val TAG = this::class.simpleName
 
-    // 音源, 同时支持麦克风和蓝牙耳机
     private val audioInput = MediaRecorder.AudioSource.MIC
-
-    // 采样率
-    private val AUDIO_SAMPLE_RATE_HZ = arrayOf(48000, 44100, 16000, 8000)
-
-    // 音频通道
-    private val AUDIO_CHANNEL = arrayOf(AudioFormat.CHANNEL_IN_STEREO, AudioFormat.CHANNEL_IN_MONO)
-
-    // 音频编码
-    private val audioEncoding = AudioFormat.ENCODING_PCM_16BIT
+    private val sampleRateArray = arrayOf(48000, 44100, 16000, 8000)
+    private val channelConfigArray = arrayOf(AudioFormat.CHANNEL_IN_STEREO, AudioFormat.CHANNEL_IN_MONO)
 
     private var mAudioRecord: AudioRecord? = null
     private lateinit var mRecordBuffer: ByteArray
     private var isRecord = false
     private var isMute = false
-    private var mChannelCount = 0
-    private var mSampleRate = 0
+    private var mChannelCount: Int = 0
+    private var mSampleRate: Int = 0
+    private val mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT
     private var mCallback: ADRecordCallback? = null
 
     internal fun setCallback(callback: ADRecordCallback) {
@@ -44,16 +37,19 @@ internal class ADAudioSysRecordThread : Thread() {
         var sampleRate = -1
         var channel = -1
         // 为了当前获取音源设备可用的参数
-        for (s in AUDIO_SAMPLE_RATE_HZ) {
-            for (c in AUDIO_CHANNEL) {
+        for (s in sampleRateArray) {
+            for (c in channelConfigArray) {
                 try {
-                    recordBufferSize = AudioRecord.getMinBufferSize(s, c, audioEncoding)
+                    recordBufferSize = AudioRecord.getMinBufferSize(s, c, mAudioEncoding)
                     if (recordBufferSize > 0) {
                         sampleRate = s
                         channel = c
                         break
                     } else {
-                        Log.e(TAG, "该设备不支持采样率:$s 声道:${if (c == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
+                        Log.e(
+                            TAG,
+                            "该设备不支持采样率:$s 声道:${if (c == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}"
+                        )
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -62,9 +58,13 @@ internal class ADAudioSysRecordThread : Thread() {
         }
         if (recordBufferSize > 0) {
             mRecordBuffer = ByteArray(recordBufferSize)
-            Log.i(TAG, "当前设备采样率:${sampleRate}Hz,${if (channel == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
+            Log.i(
+                TAG,
+                "当前设备采样率:${sampleRate}Hz,${if (channel == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}"
+            )
             try {
-                mAudioRecord = AudioRecord(audioInput, sampleRate, channel, audioEncoding, recordBufferSize)
+                mAudioRecord =
+                    AudioRecord(audioInput, sampleRate, channel, mAudioEncoding, recordBufferSize)
                 mSampleRate = sampleRate
                 mChannelCount = if (channel == AudioFormat.CHANNEL_IN_STEREO) 2 else 1
                 Log.i(TAG, "当前设备采样率:${sampleRate}Hz, 声道数: $mChannelCount")
