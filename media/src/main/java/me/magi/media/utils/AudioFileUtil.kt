@@ -1,4 +1,4 @@
-package me.magi.audioVideoTest.utils
+package me.magi.media.utils
 
 import android.content.Context
 import java.io.File

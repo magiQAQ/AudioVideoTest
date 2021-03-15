@@ -1,4 +1,4 @@
-package me.magi.audioVideoTest.audio
+package me.magi.media.audio
 
 import java.io.File
 

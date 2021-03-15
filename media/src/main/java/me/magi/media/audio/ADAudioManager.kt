@@ -1,9 +1,12 @@
-package me.magi.audioVideoTest.audio
+package me.magi.media.audio
 
+import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import me.magi.audioVideoTest.utils.getApp
-import me.magi.audioVideoTest.utils.getAudioDir
-import me.magi.audioVideoTest.utils.pcmFile2WavFile
+import me.magi.media.utils.getApp
+import me.magi.media.utils.getAudioDir
+import me.magi.media.utils.pcmFile2WavFile
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -13,7 +16,7 @@ object ADAudioManager {
     private val TAG = this::class.simpleName
     private var mCallback: ADAudioCallback? = null
 
-    private var fileNameWithOutSuffix = ""
+    private val handler = Handler(Looper.getMainLooper())
 
     fun setRecordCallback(callback: ADAudioCallback) {
         mCallback = callback
@@ -22,7 +25,7 @@ object ADAudioManager {
     fun startRecordOnlySave(fileNameWithOutSuffix: String) {
         if (mRecordThread != null && mRecordThread!!.isAlive) {
             Log.e(TAG, "用户重复开启未结束的录音")
-            mCallback?.onError(3, "当前有未停止的录音")
+            handler.post { mCallback?.onError(-6, "当前有未停止的录音") }
             return
         }
         mRecordThread = ADAudioSysRecordThread()
@@ -39,7 +42,15 @@ object ADAudioManager {
         mRecordThread!!.stopRecord()
     }
 
-    internal class OnlySaveRecordCallback(private val fileNameWithOutSuffix: String) :
+    fun playRecord(wavFile: File) {
+        if (!wavFile.exists()) {
+            handler.post { mCallback?.onError(-7, "wav文件不存在") }
+            return
+        }
+
+    }
+
+    internal class OnlySaveRecordCallback(private val fileNameWithOutSuffix: String):
         ADRecordCallback {
         private var fos: FileOutputStream? = null
         private var pcmFile: File? = null
@@ -59,7 +70,7 @@ object ADAudioManager {
                 mRecordThread!!.stopRecord()
                 val msg = "pcm音频文件创建失败"
                 Log.e(TAG, msg, e)
-                mCallback?.onError(-3, msg)
+                handler.post{ mCallback?.onError(-3, msg) }
             }
         }
 
@@ -71,7 +82,7 @@ object ADAudioManager {
                 mRecordThread!!.stopRecord()
                 val msg = "pcm数据写入文件失败"
                 Log.e(TAG, msg, e)
-                mCallback?.onError(-4, msg)
+                handler.post { mCallback?.onError(-4, msg) }
             }
         }
 
@@ -94,15 +105,14 @@ object ADAudioManager {
                 pcmFile!!.delete()
             } catch (e: IOException) {
                 appearIOException = true
-                mCallback?.onError(-5, e.message ?: "")
+                handler.post { mCallback?.onError(-5, e.message ?: "") }
             }
-            if (!appearIOException) mCallback?.onSaveFinish(wavFile)
+            if (!appearIOException) handler.post { mCallback?.onSaveFinish(wavFile) }
             mRecordThread = null
         }
 
         override fun onRecordError(errorCode: Int, errorMsg: String) {
-            mCallback?.onError(errorCode, errorMsg)
+            handler.post { mCallback?.onError(errorCode, errorMsg) }
         }
     }
-
 }

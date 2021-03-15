@@ -1,4 +1,4 @@
-package me.magi.audioVideoTest.audio
+package me.magi.media.audio
 
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -11,7 +11,7 @@ internal class ADAudioSysRecordThread : Thread() {
     private val TAG = this::class.simpleName
 
     // 音源, 同时支持麦克风和蓝牙耳机
-    private val AUDIO_INPUT = MediaRecorder.AudioSource.VOICE_COMMUNICATION
+    private val audioInput = MediaRecorder.AudioSource.MIC
 
     // 采样率
     private val AUDIO_SAMPLE_RATE_HZ = arrayOf(48000, 44100, 16000, 8000)
@@ -20,7 +20,7 @@ internal class ADAudioSysRecordThread : Thread() {
     private val AUDIO_CHANNEL = arrayOf(AudioFormat.CHANNEL_IN_STEREO, AudioFormat.CHANNEL_IN_MONO)
 
     // 音频编码
-    private val AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT
+    private val audioEncoding = AudioFormat.ENCODING_PCM_16BIT
 
     private var mAudioRecord: AudioRecord? = null
     private lateinit var mRecordBuffer: ByteArray
@@ -47,14 +47,16 @@ internal class ADAudioSysRecordThread : Thread() {
         for (s in AUDIO_SAMPLE_RATE_HZ) {
             for (c in AUDIO_CHANNEL) {
                 try {
-                    recordBufferSize = AudioRecord.getMinBufferSize(s, c, AUDIO_ENCODING)
+                    recordBufferSize = AudioRecord.getMinBufferSize(s, c, audioEncoding)
                     if (recordBufferSize > 0) {
                         sampleRate = s
                         channel = c
                         break
+                    } else {
+                        Log.e(TAG, "该设备不支持采样率:$s 声道:${if (c == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
                     }
                 } catch (e: Exception) {
-                    Log.e("AudioRecord", "该设备不支持采样率:$s 声道:${if (c == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
+                    e.printStackTrace()
                 }
             }
         }
@@ -62,7 +64,7 @@ internal class ADAudioSysRecordThread : Thread() {
             mRecordBuffer = ByteArray(recordBufferSize)
             Log.i(TAG, "当前设备采样率:${sampleRate}Hz,${if (channel == AudioFormat.CHANNEL_IN_STEREO) "双声道" else "单声道"}")
             try {
-                mAudioRecord = AudioRecord(AUDIO_INPUT, sampleRate, channel, AUDIO_ENCODING, recordBufferSize)
+                mAudioRecord = AudioRecord(audioInput, sampleRate, channel, audioEncoding, recordBufferSize)
                 mSampleRate = sampleRate
                 mChannelCount = if (channel == AudioFormat.CHANNEL_IN_STEREO) 2 else 1
                 Log.i(TAG, "当前设备采样率:${sampleRate}Hz, 声道数: $mChannelCount")
