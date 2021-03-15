@@ -133,6 +133,7 @@ internal class ADAudioSysRecordThread : Thread() {
             mCallback?.onRecordStop()
         }
         unInit()
+        mCallback?.onRecordFinish()
     }
 
 }

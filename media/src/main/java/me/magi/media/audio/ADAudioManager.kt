@@ -13,6 +13,7 @@ import java.io.IOException
 
 object ADAudioManager {
     private var mRecordThread: ADAudioSysRecordThread? = null
+    private var mPlayerThread: ADAudioSysPlayerThread? = null
     private val TAG = this::class.simpleName
     private var mCallback: ADAudioCallback? = null
 
@@ -24,7 +25,7 @@ object ADAudioManager {
 
     fun startRecordOnlySave(fileNameWithOutSuffix: String) {
         if (mRecordThread != null && mRecordThread!!.isAlive) {
-            Log.e(TAG, "用户重复开启未结束的录音")
+            Log.e(TAG, "当前录音未结束")
             handler.post { mCallback?.onError(-6, "当前有未停止的录音") }
             return
         }
@@ -47,10 +48,17 @@ object ADAudioManager {
             handler.post { mCallback?.onError(-7, "wav文件不存在") }
             return
         }
-
+        if (mPlayerThread != null && mPlayerThread!!.isAlive) {
+            Log.e(TAG, "当前播放未结束")
+            handler.post { mCallback?.onError(-6, "当前有未结束的播放") }
+            return
+        }
+        mPlayerThread = ADAudioSysPlayerThread(wavFile)
+        mPlayerThread!!.setCallback(PlayWavCallback())
+        mPlayerThread!!.start()
     }
 
-    internal class OnlySaveRecordCallback(private val fileNameWithOutSuffix: String):
+    internal class OnlySaveRecordCallback(private val fileNameWithOutSuffix: String) :
         ADRecordCallback {
         private var fos: FileOutputStream? = null
         private var pcmFile: File? = null
@@ -70,7 +78,7 @@ object ADAudioManager {
                 mRecordThread!!.stopRecord()
                 val msg = "pcm音频文件创建失败"
                 Log.e(TAG, msg, e)
-                handler.post{ mCallback?.onError(-3, msg) }
+                handler.post { mCallback?.onError(-3, msg) }
             }
         }
 
@@ -108,11 +116,36 @@ object ADAudioManager {
                 handler.post { mCallback?.onError(-5, e.message ?: "") }
             }
             if (!appearIOException) handler.post { mCallback?.onSaveFinish(wavFile) }
-            mRecordThread = null
         }
 
         override fun onRecordError(errorCode: Int, errorMsg: String) {
             handler.post { mCallback?.onError(errorCode, errorMsg) }
+        }
+
+        override fun onRecordFinish() {
+            mRecordThread = null
+        }
+    }
+
+    internal class PlayWavCallback : ADPlayerCallback {
+        override fun onPlayStart() {
+            Log.i(TAG, "播放开始")
+        }
+
+        override fun onPlayTime(currentTime: Int, totalTime: Int) {
+            handler.post { mCallback?.onPlayTime(currentTime, totalTime) }
+        }
+
+        override fun onPlayEnd() {
+            Log.i(TAG, "播放结束")
+        }
+
+        override fun onPlayError(errorCode: Int, errorMsg: String) {
+            handler.post { mCallback?.onError(errorCode, errorMsg) }
+        }
+
+        override fun onPlayFinish() {
+            mPlayerThread = null
         }
     }
 }

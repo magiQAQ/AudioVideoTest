@@ -10,4 +10,6 @@ interface ADPlayerCallback {
 
     fun onPlayError(errorCode: Int, errorMsg: String)
 
+    fun onPlayFinish()
+
 }

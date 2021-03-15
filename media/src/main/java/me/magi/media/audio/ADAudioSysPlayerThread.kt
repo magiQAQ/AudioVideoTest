@@ -25,6 +25,10 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
     private val mAudioEncoding = AudioFormat.ENCODING_PCM_16BIT
     private var mCallback: ADPlayerCallback? = null
 
+    internal fun setCallback(callback: ADPlayerCallback) {
+        mCallback = callback
+    }
+
     private fun readFileHeadInfo() {
         try {
             fis = FileInputStream(file)
@@ -109,5 +113,6 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
             mCallback?.onPlayEnd()
         }
         unInit()
+        mCallback?.onPlayFinish()
     }
 }

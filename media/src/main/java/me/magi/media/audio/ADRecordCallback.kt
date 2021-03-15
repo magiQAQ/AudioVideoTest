@@ -10,4 +10,6 @@ internal interface ADRecordCallback {
 
     fun onRecordError(errorCode:Int, errorMsg: String)
 
+    fun onRecordFinish()
+
 }
