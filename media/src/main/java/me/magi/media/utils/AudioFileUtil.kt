@@ -2,11 +2,11 @@ package me.magi.media.utils
 
 import android.content.Context
 import android.media.AudioFormat
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
+import java.io.*
 import java.lang.StringBuilder
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.experimental.or
 
 const val FILE_DIR_NAME = "AUDIO_TEST"
 
@@ -19,7 +19,7 @@ fun pcmFile2WavFile(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int
     wavFile.createNewFile()
     val fis = FileInputStream(pcmFile)
     val fos = FileOutputStream(wavFile)
-    val header = getWaveFileHeader(pcmFile.length(), sampleRate, channels)
+    val header = getWaveFileHeader(pcmFile.length(), sampleRate.toLong(), channels)
     fos.write(header)
     val array = ByteArray(bufferSize)
     while (fis.read(array) != -1) {
@@ -35,11 +35,11 @@ fun pcmFile2WavFile(pcmFile: File, wavFile: File, sampleRate: Int, channels: Int
  */
 private fun getWaveFileHeader(
     totalPcmLen: Long,
-    sampleRate: Int,
+    sampleRate: Long,
     channels: Int,
 ): ByteArray {
     // 音频采样速率
-    val bytePerSecond = sampleRate.toLong() * channels * 16 / 8
+    val bytePerSecond = sampleRate * channels * 16 / 8
     val totalDataLen = totalPcmLen + 36
     val header = ByteArray(44)
     header[0] = 'R'.toByte() // RIFF
@@ -111,7 +111,7 @@ fun getAudioDir(context: Context): File {
  * 获取wav文件头部信息
  */
 @Throws(IOException::class)
-fun getWavFileHeader(fis: FileInputStream): ByteArray? {
+fun getWavFileHeader(fis: BufferedInputStream): ByteArray? {
     val head = ByteArray(44)
     val readSize = fis.read(head)
     return if (readSize < 44) null else head
@@ -122,16 +122,16 @@ fun getWavFileHeader(fis: FileInputStream): ByteArray? {
  */
 fun isWavFile(wavHead: ByteArray): Boolean {
     val builder = StringBuilder()
-    for (index in 0..3) { builder.append(wavHead[index]) }
+    for (index in 0..3) { builder.append(wavHead[index].toChar()) }
     if (builder.toString()!="RIFF")  return false
     builder.clear()
-    for (index in 8..11) { builder.append(wavHead[index]) }
+    for (index in 8..11) { builder.append(wavHead[index].toChar()) }
     if (builder.toString()!="WAVE") return false
     builder.clear()
-    for (index in 12..15) { builder.append(wavHead[index]) }
+    for (index in 12..15) { builder.append(wavHead[index].toChar()) }
     if (builder.toString()!="fmt ") return false
     builder.clear()
-    for (index in 36..39) { builder.append(wavHead[index]) }
+    for (index in 36..39) { builder.append(wavHead[index].toChar()) }
     if (builder.toString()!="data") return false
     builder.clear()
     return true
@@ -148,5 +148,9 @@ fun getChannelConfig(wavHead: ByteArray): Int {
  * 获取wav采样率
  */
 fun getSimpleRate(wavHead: ByteArray): Int {
-    return wavHead[24].toInt() + wavHead[25].toInt() shl 8 + wavHead[26].toInt() shl 16 + wavHead[27].toInt() shl 24
+    val array = ByteArray(4)
+    for (index in 0..3) {
+        array[index] = wavHead[24 + index]
+    }
+    return ByteBuffer.wrap(array).order(ByteOrder.LITTLE_ENDIAN).int
 }

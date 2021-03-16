@@ -43,7 +43,7 @@ object ADAudioManager {
         mRecordThread!!.stopRecord()
     }
 
-    fun playRecord(wavFile: File) {
+    fun startPlay(wavFile: File) {
         if (!wavFile.exists()) {
             handler.post { mCallback?.onError(-7, "wav文件不存在") }
             return
@@ -56,6 +56,15 @@ object ADAudioManager {
         mPlayerThread = ADAudioSysPlayerThread(wavFile)
         mPlayerThread!!.setCallback(PlayWavCallback())
         mPlayerThread!!.start()
+    }
+
+    fun stopPlay() {
+        if (mPlayerThread == null) return
+        if (!mPlayerThread!!.isAlive) {
+            mRecordThread = null
+            return
+        }
+        mPlayerThread!!.stopPlay()
     }
 
     internal class OnlySaveRecordCallback(private val fileNameWithOutSuffix: String) :

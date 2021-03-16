@@ -37,14 +37,14 @@ internal class ADAudioSysRecordThread : Thread() {
         var sampleRate = -1
         var channel = -1
         // 为了当前获取音源设备可用的参数
-        for (s in sampleRateArray) {
+        out@ for (s in sampleRateArray) {
             for (c in channelConfigArray) {
                 try {
                     recordBufferSize = AudioRecord.getMinBufferSize(s, c, mAudioEncoding)
                     if (recordBufferSize > 0) {
                         sampleRate = s
                         channel = c
-                        break
+                        break@out
                     } else {
                         Log.e(
                             TAG,

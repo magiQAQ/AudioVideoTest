@@ -4,10 +4,8 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.util.Log
-import me.magi.media.utils.getChannelConfig
-import me.magi.media.utils.getSimpleRate
-import me.magi.media.utils.getWavFileHeader
-import me.magi.media.utils.isWavFile
+import me.magi.media.utils.*
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -17,7 +15,7 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
     private val TAG = this::class.simpleName
 
     private var mAudioTrack: AudioTrack? = null
-    private lateinit var fis: FileInputStream
+    private lateinit var fis: BufferedInputStream
     private lateinit var mPlayBuffer: ByteArray
     private var isPlaying = false
     private var mChannelConfig: Int = 0
@@ -31,7 +29,7 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
 
     private fun readFileHeadInfo() {
         try {
-            fis = FileInputStream(file)
+            fis = BufferedInputStream(FileInputStream(file))
             val wavHead = getWavFileHeader(fis)
             if (wavHead == null) {
                 mCallback?.onPlayError(30, "文件头信息不足44位")
@@ -43,6 +41,9 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
             }
             mChannelConfig = getChannelConfig(wavHead)
             mSampleRate = getSimpleRate(wavHead)
+//            val reader = WaveFileReader(file)
+//            mChannelConfig = if (reader.numChannels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
+//            mSampleRate = reader.sampleRate.toInt()
         } catch (e: IOException) {
             mCallback?.onPlayError(30, "文件读取失败")
         }
@@ -51,6 +52,9 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
     private fun init() {
         Log.i(TAG, "init")
         readFileHeadInfo()
+        if (mChannelConfig == 0 || mSampleRate <= 0) {
+            return
+        }
         val bufferSize =
             AudioTrack.getMinBufferSize(mSampleRate, mChannelConfig, mAudioEncoding)
         if (bufferSize <= 0) {
@@ -91,6 +95,10 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
         mAudioTrack = null
     }
 
+    fun stopPlay() {
+        isPlaying = false
+    }
+
     override fun run() {
         if (isPlaying) {
             Log.i(TAG, "播放正在进行")
@@ -103,6 +111,7 @@ class ADAudioSysPlayerThread(private val file: File) : Thread() {
         }
         var readSize = 0
         Log.i(TAG, "音频播放开始")
+        mAudioTrack?.play()
         while (mAudioTrack!=null && isPlaying && fis.read(mPlayBuffer).also { readSize = it } > 0) {
             mAudioTrack!!.write(mPlayBuffer, 0, readSize)
             mCallback?.onPlayTime(0,0)
