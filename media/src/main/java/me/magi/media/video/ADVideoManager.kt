@@ -9,7 +9,7 @@ import java.lang.ref.WeakReference
 
 object ADVideoManager {
     private var mTextureViewHolder: WeakReference<TextureView>? = null
-    private val cameraManager by lazy { getApp().getSystemService(Context.CAMERA_SERVICE) as CameraManager }
+
 
     fun setTextureView(textureView: TextureView) {
         mTextureViewHolder = WeakReference(textureView)
