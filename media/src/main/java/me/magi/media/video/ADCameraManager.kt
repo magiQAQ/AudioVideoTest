@@ -18,8 +18,10 @@ object ADCameraManager {
     private val manager by lazy { getApp().getSystemService(Context.CAMERA_SERVICE) as CameraManager }
     private val handler by lazy { Handler(Looper.getMainLooper()) }
     private var mFrontCameraId: String? = null
+    private var mFrontCameraOrientation: Int? = null
     private var mFrontCameraCharacteristics: CameraCharacteristics? = null
     private var mBackCameraId: String? = null
+    private var mBackCameraOrientation: Int? = null
     private var mBackCameraCharacteristics: CameraCharacteristics? = null
     private var mCameraDevice: CameraDevice? = null
 
@@ -30,8 +32,24 @@ object ADCameraManager {
         Log.d(TAG, "cameraDeviceCount: ${cameraIdList.size}")
         cameraIdList.forEach { cameraId ->
             val cameraCharacteristics = manager.getCameraCharacteristics(cameraId)
+            // 获取前置摄像头
+            when (cameraCharacteristics[CameraCharacteristics.LENS_FACING]) {
+                CameraCharacteristics.LENS_FACING_FRONT -> {
+                    mFrontCameraId = cameraId
+                    mFrontCameraOrientation = cameraCharacteristics[CameraCharacteristics.SENSOR_ORIENTATION]
+                    mFrontCameraCharacteristics = cameraCharacteristics
+                }
+                CameraCharacteristics.LENS_FACING_BACK -> {
+                    mBackCameraId = cameraId
+                    mBackCameraOrientation = cameraCharacteristics[CameraCharacteristics.SENSOR_ORIENTATION]
+                    mFrontCameraCharacteristics = cameraCharacteristics
+                }
+            }
+
+
             if (cameraCharacteristics[CameraCharacteristics.LENS_FACING] == CameraCharacteristics.LENS_FACING_BACK) {
                 mBackCameraId = cameraId
+                cameraCharacteristics[CameraCharacteristics.SENSOR_ORIENTATION]
                 mBackCameraCharacteristics = cameraCharacteristics
             } else if (cameraCharacteristics[CameraCharacteristics.LENS_FACING] == CameraCharacteristics.LENS_FACING_FRONT) {
                 mFrontCameraId = cameraId
