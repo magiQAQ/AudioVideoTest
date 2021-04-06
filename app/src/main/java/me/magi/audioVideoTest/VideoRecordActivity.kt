@@ -3,6 +3,7 @@ package me.magi.audioVideoTest
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.TextureView
+import me.magi.media.video.ADCameraManager
 import me.magi.media.video.ADVideoManager
 
 class VideoRecordActivity : AppCompatActivity() {

@@ -1,15 +1,13 @@
 package me.magi.media.video
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraManager
+import android.hardware.camera2.*
+import android.hardware.camera2.CameraAccessException.*
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import me.magi.media.utils.getApp
-import java.lang.RuntimeException
+import me.magi.media.video.ADVideoConstant.*
 
 
 object ADCameraManager {
@@ -48,14 +46,33 @@ object ADCameraManager {
         return manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)?:-1
     }
 
-    @SuppressLint("MissingPermission")
-    fun openCamera() {
+    fun openCamera(@ADVideoConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
         // 优先开启后置摄像头
-        if (mBackCameraIds.isEmpty() && mFrontCameraIds.isEmpty()) {
-            throw RuntimeException("没有找到可用的摄像头")
+        val cameraId = if (cameraFacing == CAMERA_FACING_FRONT) {
+            mFrontCameraIds.getOrNull(index)
+        } else {
+            mBackCameraIds.getOrNull(index)
         }
-        val cameraId = mBackCameraIds.getOrNull(0) ?: mFrontCameraIds[0]
-        manager.openCamera(cameraId, CameraStateCallback(), handler)
+        if (cameraId == null) {
+            mCallback?.onError(ERROR_NO_THIS_CAMERA,"no this camera device with cameraFacing: $cameraFacing,index: $index")
+            return
+        }
+        try {
+            manager.openCamera(cameraId, CameraStateCallback(), handler)
+        } catch (e: CameraAccessException) {
+            when(e.reason) {
+                CAMERA_DISABLED -> mCallback?.onError(ERROR_CAMERA_DISABLED, "this camera device disable")
+                CAMERA_DISCONNECTED -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED,"can not connect this camera device")
+                CAMERA_ERROR -> mCallback?.onError(ERROR_CAMERA_WRONG_STATUS, "this camera device in wrong status")
+                CAMERA_IN_USE -> mCallback?.onError(ERROR_CAMERA_IN_USE, "this camera in use by other")
+                MAX_CAMERAS_IN_USE -> mCallback?.onError(ERROR_CAMERA_MAX_USE_COUNT, "current device not support open together")
+                else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
+            }
+        } catch (e: IllegalArgumentException) {
+            mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
+        } catch (e: SecurityException) {
+            mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
+        }
     }
 
     fun closeCamera() {
