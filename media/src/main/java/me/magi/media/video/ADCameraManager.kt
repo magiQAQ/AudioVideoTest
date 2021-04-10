@@ -20,7 +20,7 @@ object ADCameraManager {
     private var characteristicsKey = hashMapOf<String, List<CameraCharacteristics.Key<*>>>()
     // 当前正在使用的摄像头
     private var mCameraDevice: CameraDevice? = null
-
+    // 对外的回调
     private var mCallback: ADCameraCallback? = null
 
     init {
@@ -40,6 +40,10 @@ object ADCameraManager {
                 }
             }
         }
+    }
+
+    fun setADCameraCallback(callback: ADCameraCallback) {
+        mCallback = callback
     }
 
     private fun getCameraOrientation(cameraId: String): Int {
@@ -79,34 +83,37 @@ object ADCameraManager {
         mCameraDevice?.close()
     }
 
-
-
     private class CameraStateCallback: CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
+            Log.d(TAG, "camera ${camera.id} onOpened")
             mCameraDevice = camera
-            Log.d(TAG, "相机已开启")
+
         }
 
         override fun onDisconnected(camera: CameraDevice) {
-
+            Log.e(TAG, "camera ${camera.id} onDisconnected")
+            camera.close()
+            mCameraDevice = null
         }
 
         override fun onError(camera: CameraDevice, error: Int) {
+            Log.e(TAG, "camera ${camera.id} onError,errorCode: $error")
             camera.close()
             mCameraDevice = null
-            mCallback?.onError(30, handleError(error))
-        }
-
-        private fun handleError(error: Int): String {
-            return when (error) {
-                else -> ""
+            when(error) {
+                ERROR_CAMERA_IN_USE -> mCallback?.onError(ADVideoConstant.ERROR_CAMERA_IN_USE, "this camera in use by other")
+                ERROR_MAX_CAMERAS_IN_USE -> mCallback?.onError(ERROR_CAMERA_MAX_USE_COUNT, "current device not support open together")
+                ERROR_CAMERA_DISABLED -> mCallback?.onError(ADVideoConstant.ERROR_CAMERA_DISABLED, "this camera device disable")
+                ERROR_CAMERA_DEVICE -> mCallback?.onError(ADVideoConstant.ERROR_CAMERA_DEVICE,"camera device error, maybe need reopen")
+                ERROR_CAMERA_SERVICE -> mCallback?.onError(ADVideoConstant.ERROR_CAMERA_SERVICE, "camera service error, maybe need reboot Android device")
+                else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
             }
         }
 
         override fun onClosed(camera: CameraDevice) {
+            Log.d(TAG, "camera ${camera.id} onClosed")
             super.onClosed(camera)
             mCameraDevice = null
-            Log.d(TAG, "相机已关闭")
         }
     }
 

@@ -20,6 +20,8 @@ public final class ADVideoConstant {
     public static final int ERROR_CAMERA_MAX_USE_COUNT = -1005;
     public static final int ERROR_NO_THIS_CAMERA = -1006;
     public static final int ERROR_NO_PERMISSION = -1007;
+    public static final int ERROR_CAMERA_DEVICE = -1008;
+    public static final int ERROR_CAMERA_SERVICE = -1009;
 
 
 
