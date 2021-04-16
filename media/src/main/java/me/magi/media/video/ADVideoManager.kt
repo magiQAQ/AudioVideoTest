@@ -1,10 +1,9 @@
 package me.magi.media.video
 
-import android.content.Context
+import android.annotation.SuppressLint
 import android.graphics.SurfaceTexture
-import android.hardware.camera2.CameraManager
+import android.view.Surface
 import android.view.TextureView
-import me.magi.media.utils.getApp
 import java.lang.ref.WeakReference
 
 object ADVideoManager {
@@ -14,12 +13,15 @@ object ADVideoManager {
     fun setTextureView(textureView: TextureView) {
         mTextureViewHolder = WeakReference(textureView)
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            private var mPreviewSurface: Surface? = null
+
             override fun onSurfaceTextureAvailable(
                 surface: SurfaceTexture,
                 width: Int,
                 height: Int
             ) {
-
+                @Suppress("Recycle")
+                mPreviewSurface = Surface(surface)
             }
 
             override fun onSurfaceTextureSizeChanged(
@@ -27,15 +29,16 @@ object ADVideoManager {
                 width: Int,
                 height: Int
             ) {
-                TODO("Not yet implemented")
+
             }
 
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                TODO("Not yet implemented")
+                mPreviewSurface?.release()
+                return false
             }
 
             override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-                TODO("Not yet implemented")
+
             }
         }
     }
