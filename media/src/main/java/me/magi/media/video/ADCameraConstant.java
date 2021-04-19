@@ -32,6 +32,7 @@ public final class ADCameraConstant {
     public static final int ERROR_NO_PERMISSION = -1007;
     public static final int ERROR_CAMERA_DEVICE = -1008;
     public static final int ERROR_CAMERA_SERVICE = -1009;
+    public static final int ERROR_SESSION_CONFIGURE_FAILED = -1010;
 
 
     @IntDef({CAMERA_FACING_FRONT, CAMERA_FACING_BACK})
