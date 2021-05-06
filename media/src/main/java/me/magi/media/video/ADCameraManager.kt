@@ -47,8 +47,10 @@ object ADCameraManager {
     init {
         val cameraIdList = manager.cameraIdList
         Log.d(TAG, "cameraDeviceCount: ${cameraIdList.size}")
-        cameraIdList.forEach { cameraId ->
+        for (cameraId in cameraIdList) {
             val cameraCharacteristics = manager.getCameraCharacteristics(cameraId)
+            // 如果摄像头不支持YUV_420_888，也排除掉
+            cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.YUV_420_888)?:continue
             // 获取前置后置摄像头, 摄像头会有多个, 可以用列表保存, 方便切换
             when (cameraCharacteristics[CameraCharacteristics.LENS_FACING]) {
                 CameraCharacteristics.LENS_FACING_FRONT -> {
@@ -217,7 +219,12 @@ object ADCameraManager {
 
         override fun onConfigured(session: CameraCaptureSession) {
             mCameraSession = session
+            val cameraDevice = session.device
+            val previewSurface = mPreviewSurface?:return
+            val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+            requestBuilder.addTarget(previewSurface)
 
+            requestBuilder.build()
 
 
 
