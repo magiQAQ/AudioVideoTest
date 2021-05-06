@@ -5,10 +5,9 @@ import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
-import androidx.core.app.ActivityCompat
 import me.magi.media.audio.ADAudioCallback
 import me.magi.media.audio.ADAudioManager
-import me.magi.media.utils.showToast
+import me.magi.media.utils.ADAppUtil.showToast
 import java.io.File
 
 class AudioRecordActivity : AppCompatActivity() {

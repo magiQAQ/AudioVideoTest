@@ -1,18 +1,12 @@
 package me.magi.media.video
 
 import android.graphics.ImageFormat
-import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.*
 import android.hardware.camera2.CameraAccessException.*
-import android.hardware.camera2.CameraCaptureSession
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.Looper
-import android.os.Process
+import android.os.*
 import android.util.Log
 import android.view.Surface
 import me.magi.media.utils.ADAppUtil
@@ -24,7 +18,7 @@ object ADCameraManager {
 
     private val manager by lazy { ADAppUtil.cameraManager }
     private val mHandlerThread by lazy {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             HandlerThread("CameraThread", Process.THREAD_PRIORITY_VIDEO)
         } else {
             HandlerThread("CameraThread")
@@ -36,6 +30,10 @@ object ADCameraManager {
     private var mCameraInfoMap = hashMapOf<String, ADCameraInfo>()
     // 当前正在使用的摄像头
     private var mCameraDevice: CameraDevice? = null
+    // 当前摄像头开启的会话
+    private var mCameraSession: CameraCaptureSession? = null
+    // 摄像头的录制强求
+    private var mCaptureRequest: CaptureRequest? = null
     // 对外的回调
     private var mCallback: ADCameraCallback? = null
     // 外部的预览输出缓冲区
@@ -69,7 +67,7 @@ object ADCameraManager {
         mCallback = callback
     }
 
-    fun setPreviewSurface(previewSurface: Surface) {
+    fun setPreviewSurface(previewSurface: Surface?) {
         mPreviewSurface = previewSurface
     }
 
@@ -146,14 +144,14 @@ object ADCameraManager {
             if (previewSurface == null) {
                 camera.close()
             } else {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     val outputConfig = OutputConfiguration(previewSurface)
-                    val session = SessionConfiguration(
+                    val sessionConfiguration = SessionConfiguration(
                         SessionConfiguration.SESSION_REGULAR, listOf(
                             outputConfig
                         ), ADAppUtil.executor, mSessionStateCallback
                     )
-                    camera.createCaptureSession(session)
+                    camera.createCaptureSession(sessionConfiguration)
                 } else {
                     camera.createCaptureSession(
                         listOf(previewSurface),
@@ -204,6 +202,8 @@ object ADCameraManager {
 
         override fun onClosed(camera: CameraDevice) {
             Log.d(TAG, "camera ${camera.id} onClosed")
+            mCaptureRequest = null
+            mCameraSession?.close()
             mImageReaderSurface?.release()
             mImageReader?.close()
             mImageReaderSurface = null
@@ -214,14 +214,25 @@ object ADCameraManager {
     }
 
     private val mSessionStateCallback = object : CameraCaptureSession.StateCallback(){
+
         override fun onConfigured(session: CameraCaptureSession) {
-            TODO("Not yet implemented")
+            mCameraSession = session
+
+
+
+
         }
 
         override fun onConfigureFailed(session: CameraCaptureSession) {
             mCallback?.onError(ERROR_SESSION_CONFIGURE_FAILED, "this session configure failed")
             mCameraDevice?.close()
         }
+
+        override fun onClosed(session: CameraCaptureSession) {
+            super.onClosed(session)
+            mCaptureRequest = null
+        }
+
     }
 
 }
