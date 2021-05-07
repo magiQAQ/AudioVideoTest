@@ -1,9 +1,10 @@
 package me.magi.media.video
 
-import android.annotation.SuppressLint
 import android.graphics.SurfaceTexture
+import android.util.Log
 import android.view.Surface
 import android.view.TextureView
+import me.magi.media.utils.ADLogUtil
 import java.lang.ref.WeakReference
 
 object ADVideoManager {
@@ -19,7 +20,15 @@ object ADVideoManager {
     private var cameraFacing = ADCameraConstant.CAMERA_FACING_BACK
     private var cameraIndex = 0
 
+    init {
+        ADCameraManager.setCameraCallback{ errorCode, errorMsg ->
+            ADLogUtil.d(errorCode, errorMsg)
+        }
+        ADLogUtil.d("front: ${ADCameraManager.getFrontCameraCount()}, back: ${ADCameraManager.getBackCameraCount()}")
+    }
+
     fun setTextureView(textureView: TextureView) {
+        ADLogUtil.d("setTextureView")
         targetState = STATE_PREVIEW_READY
         mTextureViewHolder = WeakReference(textureView)
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
@@ -28,6 +37,7 @@ object ADVideoManager {
                 width: Int,
                 height: Int
             ) {
+                ADLogUtil.d("onSurfaceTextureAvailable")
                 @Suppress("Recycle")
                 mPreviewSurface = Surface(surface)
                 ADCameraManager.setPreviewSurface(mPreviewSurface)
@@ -42,10 +52,11 @@ object ADVideoManager {
                 width: Int,
                 height: Int
             ) {
-
+                ADLogUtil.d("onSurfaceTextureSizeChanged")
             }
 
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                ADLogUtil.d("onSurfaceTextureDestroyed")
                 currentState = 0
                 ADCameraManager.setPreviewSurface(null)
                 mPreviewSurface?.release()
@@ -53,12 +64,11 @@ object ADVideoManager {
             }
 
             override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-
             }
         }
     }
 
-    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
+    fun startPreview(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
         if (mTextureViewHolder == null || targetState < STATE_PREVIEW_READY) {
             // 没有设置预览界面
             return
@@ -66,6 +76,7 @@ object ADVideoManager {
         if (currentState == STATE_CAMERA_OPEN) {
             return
         }
+        ADLogUtil.d("startPreview")
         targetState = STATE_CAMERA_OPEN
         if (mPreviewSurface != null && currentState == STATE_PREVIEW_READY) {
             currentState = STATE_CAMERA_OPEN
@@ -73,5 +84,17 @@ object ADVideoManager {
         }
     }
 
+    fun stopPreview() {
+        targetState = if (mTextureViewHolder!=null) {
+            STATE_PREVIEW_READY
+        } else {
+            0
+        }
+        if (currentState == STATE_CAMERA_OPEN) {
+            ADLogUtil.d("stopPreview")
+            ADCameraManager.closeCamera()
+            currentState = STATE_PREVIEW_READY
+        }
+    }
 
 }

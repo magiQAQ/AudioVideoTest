@@ -1,17 +1,11 @@
 package me.magi.media.video;
 
-import android.hardware.camera2.CameraManager;
-
 import androidx.annotation.IntDef;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
-import me.magi.media.utils.ADAppUtil;
-
 public final class ADCameraConstant {
-
-    public static CameraManager cameraManager;
 
     // 前置摄像头
     public static final int CAMERA_FACING_FRONT = 0;
@@ -33,6 +27,10 @@ public final class ADCameraConstant {
     public static final int ERROR_CAMERA_DEVICE = -1008;
     public static final int ERROR_CAMERA_SERVICE = -1009;
     public static final int ERROR_SESSION_CONFIGURE_FAILED = -1010;
+    public static final int ERROR_CAMERA_NOT_SUPPORT_RECORD = -1011;
+    public static final int ERROR_CAMERA_CLOSED = -1012;
+    public static final int ERROR_SESSION_INVALID = -1013;
+    public static final int ERROR_SURFACE_INVALID = -1014;
 
 
     @IntDef({CAMERA_FACING_FRONT, CAMERA_FACING_BACK})

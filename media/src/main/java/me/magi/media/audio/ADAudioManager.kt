@@ -1,10 +1,9 @@
 package me.magi.media.audio
 
-import android.media.MediaMetadataRetriever
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import me.magi.media.utils.ADAppUtil.getApp
+import me.magi.media.utils.getApp
 import me.magi.media.utils.getAudioDir
 import me.magi.media.utils.pcmFile2WavFile
 import java.io.File

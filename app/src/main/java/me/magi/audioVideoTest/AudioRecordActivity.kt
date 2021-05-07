@@ -7,7 +7,7 @@ import android.os.Bundle
 import android.view.View
 import me.magi.media.audio.ADAudioCallback
 import me.magi.media.audio.ADAudioManager
-import me.magi.media.utils.ADAppUtil.showToast
+import me.magi.media.utils.showToast
 import java.io.File
 
 class AudioRecordActivity : AppCompatActivity() {

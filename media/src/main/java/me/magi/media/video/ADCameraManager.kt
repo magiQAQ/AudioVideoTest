@@ -16,7 +16,6 @@ import me.magi.media.video.ADCameraConstant.*
 object ADCameraManager {
     private val TAG = this::class.simpleName
 
-    private val manager by lazy { ADAppUtil.cameraManager }
     private val mHandlerThread by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             HandlerThread("CameraThread", Process.THREAD_PRIORITY_VIDEO)
@@ -24,7 +23,10 @@ object ADCameraManager {
             HandlerThread("CameraThread")
         }
     }
-    private val mCameraHandler by lazy { Handler(mHandlerThread.looper) }
+    private val mCameraHandler by lazy {
+        mHandlerThread.start()
+        Handler(mHandlerThread.looper)
+    }
     private var mFrontCameraIds = mutableListOf<String>()
     private var mBackCameraIds = mutableListOf<String>()
     private var mCameraInfoMap = hashMapOf<String, ADCameraInfo>()
@@ -32,34 +34,35 @@ object ADCameraManager {
     private var mCameraDevice: CameraDevice? = null
     // 当前摄像头开启的会话
     private var mCameraSession: CameraCaptureSession? = null
-    // 摄像头的录制强求
-    private var mCaptureRequest: CaptureRequest? = null
+    // 摄像头的录制请求
+    private var mCaptureRequestBuilder: CaptureRequest.Builder? = null
     // 对外的回调
     private var mCallback: ADCameraCallback? = null
     // 外部的预览输出缓冲区
     private var mPreviewSurface: Surface? = null
-    // 图像处理的输出缓冲区
-    private var mImageReaderSurface: Surface? = null
     // 图像采样器
     private var mImageReader: ImageReader? = null
 
 
     init {
-        val cameraIdList = manager.cameraIdList
+        val cameraIdList = ADAppUtil.cameraManager.cameraIdList
         Log.d(TAG, "cameraDeviceCount: ${cameraIdList.size}")
         for (cameraId in cameraIdList) {
-            val cameraCharacteristics = manager.getCameraCharacteristics(cameraId)
+            val cameraCharacteristics = ADAppUtil.cameraManager.getCameraCharacteristics(cameraId)
+            val cameraInfo = ADCameraInfo(cameraId)
             // 如果摄像头不支持YUV_420_888，也排除掉
-            cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(ImageFormat.YUV_420_888)?:continue
+            if (cameraInfo.getOutputSize() == null) {
+                continue
+            }
             // 获取前置后置摄像头, 摄像头会有多个, 可以用列表保存, 方便切换
             when (cameraCharacteristics[CameraCharacteristics.LENS_FACING]) {
                 CameraCharacteristics.LENS_FACING_FRONT -> {
                     mFrontCameraIds.add(cameraId)
-                    mCameraInfoMap[cameraId] = ADCameraInfo(cameraId)
+                    mCameraInfoMap[cameraId] = cameraInfo
                 }
                 CameraCharacteristics.LENS_FACING_BACK -> {
                     mBackCameraIds.add(cameraId)
-                    mCameraInfoMap[cameraId] = ADCameraInfo(cameraId)
+                    mCameraInfoMap[cameraId] = cameraInfo
                 }
             }
         }
@@ -96,40 +99,43 @@ object ADCameraManager {
             )
             return
         }
-        try {
-            manager.openCamera(cameraId, mCameraStateCallback, mCameraHandler)
-        } catch (e: CameraAccessException) {
-            when(e.reason) {
-                CAMERA_DISABLED -> mCallback?.onError(
-                    ERROR_CAMERA_DISABLED,
-                    "this camera device disable"
-                )
-                CAMERA_DISCONNECTED -> mCallback?.onError(
-                    ERROR_CAMERA_DISCONNECTED,
-                    "can not connect this camera device"
-                )
-                CAMERA_ERROR -> mCallback?.onError(
-                    ERROR_CAMERA_WRONG_STATUS,
-                    "this camera device in wrong status"
-                )
-                CAMERA_IN_USE -> mCallback?.onError(
-                    ERROR_CAMERA_IN_USE,
-                    "this camera in use by other"
-                )
-                MAX_CAMERAS_IN_USE -> mCallback?.onError(
-                    ERROR_CAMERA_MAX_USE_COUNT,
-                    "current device not support open together"
-                )
-                else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
+        mCameraHandler.post {
+            try {
+                ADAppUtil.cameraManager.openCamera(cameraId, mCameraStateCallback, mCameraHandler)
+            } catch (e: CameraAccessException) {
+                when(e.reason) {
+                    CAMERA_DISABLED -> mCallback?.onError(
+                        ERROR_CAMERA_DISABLED,
+                        "this camera device disable"
+                    )
+                    CAMERA_DISCONNECTED -> mCallback?.onError(
+                        ERROR_CAMERA_DISCONNECTED,
+                        "can not connect this camera device"
+                    )
+                    CAMERA_ERROR -> mCallback?.onError(
+                        ERROR_CAMERA_WRONG_STATUS,
+                        "this camera device in wrong status"
+                    )
+                    CAMERA_IN_USE -> mCallback?.onError(
+                        ERROR_CAMERA_IN_USE,
+                        "this camera in use by other"
+                    )
+                    MAX_CAMERAS_IN_USE -> mCallback?.onError(
+                        ERROR_CAMERA_MAX_USE_COUNT,
+                        "current device not support open together"
+                    )
+                    else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
+                }
+            } catch (e: IllegalArgumentException) {
+                mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
+            } catch (e: SecurityException) {
+                mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
             }
-        } catch (e: IllegalArgumentException) {
-            mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
-        } catch (e: SecurityException) {
-            mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
         }
     }
 
     fun closeCamera() {
+        mCameraSession?.stopRepeating()
         mCameraDevice?.close()
         mCameraDevice = null
     }
@@ -203,14 +209,10 @@ object ADCameraManager {
         }
 
         override fun onClosed(camera: CameraDevice) {
-            Log.d(TAG, "camera ${camera.id} onClosed")
-            mCaptureRequest = null
-            mCameraSession?.close()
-            mImageReaderSurface?.release()
-            mImageReader?.close()
-            mImageReaderSurface = null
-            mImageReader = null
             super.onClosed(camera)
+            Log.d(TAG, "camera ${camera.id} onClosed")
+            mImageReader?.close()
+            mImageReader = null
             mCameraDevice = null
         }
     }
@@ -221,25 +223,43 @@ object ADCameraManager {
             mCameraSession = session
             val cameraDevice = session.device
             val previewSurface = mPreviewSurface?:return
-            val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-            requestBuilder.addTarget(previewSurface)
-
-            requestBuilder.build()
-
-
+            try {
+                val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+                // 运行时参数
+                requestBuilder.addTarget(previewSurface)
+                // 自动聚焦
+                requestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                mCaptureRequestBuilder = requestBuilder
+            } catch (e: Exception) {
+                when (e) {
+                    is IllegalArgumentException -> mCallback?.onError(ERROR_CAMERA_NOT_SUPPORT_RECORD, "this camera not support record")
+                    is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
+                    is IllegalStateException -> mCallback?.onError(ERROR_CAMERA_CLOSED, "camera has closed")
+                }
+            }
+            try {
+                mCaptureRequestBuilder?.let { session.setRepeatingRequest(it.build(), null, null) }
+            } catch (e: Exception) {
+                when (e) {
+                    is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
+                    is IllegalStateException -> mCallback?.onError(ERROR_SESSION_INVALID, "camera session invalid")
+                    is IllegalArgumentException -> mCallback?.onError(ERROR_SURFACE_INVALID, "surface not config or invalid")
+                }
+            }
 
         }
 
         override fun onConfigureFailed(session: CameraCaptureSession) {
             mCallback?.onError(ERROR_SESSION_CONFIGURE_FAILED, "this session configure failed")
-            mCameraDevice?.close()
+            session.device.close()
+            mCameraSession = null
         }
 
         override fun onClosed(session: CameraCaptureSession) {
             super.onClosed(session)
-            mCaptureRequest = null
+            mCaptureRequestBuilder = null
+            mCameraSession = null
         }
 
     }
-
 }
