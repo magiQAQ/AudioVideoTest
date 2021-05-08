@@ -38,6 +38,28 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
+        android:id="@+id/btn_open_close_flash"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="开启闪光灯"
+        android:onClick="openCloseFlash"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btn_set_auto_focus"
+        app:layout_constraintBottom_toTopOf="@id/btn_start_record"
+        app:layout_constraintTop_toBottomOf="@id/btn_start_preview" />
+
+    <Button
+        android:id="@+id/btn_set_auto_focus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="关闭自动对焦"
+        android:onClick="openCloseAutoFocus"
+        app:layout_constraintTop_toBottomOf="@id/btn_stop_preview"
+        app:layout_constraintBottom_toTopOf="@id/btn_stop_record"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/btn_open_close_flash" />
+
+    <Button
         android:id="@+id/btn_start_record"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

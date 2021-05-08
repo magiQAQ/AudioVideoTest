@@ -28,7 +28,7 @@ internal object ADLogUtil {
 
     private fun createConsoleContent(vararg message: Any): String {
         val builder = StringBuilder()
-        builder.append(LINE_SEP).append(TOP_BORDER).append(LINE_SEP)
+        builder.append(" ").append(LINE_SEP).append(TOP_BORDER).append(LINE_SEP)
         for (i in message.indices) {
             if (i!=0) {
                 builder.append(MIDDLE_BORDER).append(LINE_SEP)

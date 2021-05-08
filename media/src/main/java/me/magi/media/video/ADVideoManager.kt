@@ -1,7 +1,6 @@
 package me.magi.media.video
 
 import android.graphics.SurfaceTexture
-import android.util.Log
 import android.view.Surface
 import android.view.TextureView
 import me.magi.media.utils.ADLogUtil
@@ -21,10 +20,10 @@ object ADVideoManager {
     private var cameraIndex = 0
 
     init {
-        ADCameraManager.setCameraCallback{ errorCode, errorMsg ->
+        ADCameraController.setCameraCallback{ errorCode, errorMsg ->
             ADLogUtil.d(errorCode, errorMsg)
         }
-        ADLogUtil.d("front: ${ADCameraManager.getFrontCameraCount()}, back: ${ADCameraManager.getBackCameraCount()}")
+        ADLogUtil.d("front: ${ADCameraController.getFrontCameraCount()}, back: ${ADCameraController.getBackCameraCount()}")
     }
 
     fun setTextureView(textureView: TextureView) {
@@ -40,10 +39,10 @@ object ADVideoManager {
                 ADLogUtil.d("onSurfaceTextureAvailable")
                 @Suppress("Recycle")
                 mPreviewSurface = Surface(surface)
-                ADCameraManager.setPreviewSurface(mPreviewSurface)
+                ADCameraController.setPreviewSurface(mPreviewSurface)
                 currentState = STATE_PREVIEW_READY
                 if (targetState == STATE_CAMERA_OPEN) {
-                    ADCameraManager.openCamera(cameraFacing, cameraIndex)
+                    ADCameraController.openCamera(cameraFacing, cameraIndex)
                 }
             }
 
@@ -58,7 +57,7 @@ object ADVideoManager {
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                 ADLogUtil.d("onSurfaceTextureDestroyed")
                 currentState = 0
-                ADCameraManager.setPreviewSurface(null)
+                ADCameraController.setPreviewSurface(null)
                 mPreviewSurface?.release()
                 return false
             }
@@ -80,7 +79,7 @@ object ADVideoManager {
         targetState = STATE_CAMERA_OPEN
         if (mPreviewSurface != null && currentState == STATE_PREVIEW_READY) {
             currentState = STATE_CAMERA_OPEN
-            ADCameraManager.openCamera(cameraFacing, index)
+            ADCameraController.openCamera(cameraFacing, index)
         }
     }
 
@@ -92,9 +91,17 @@ object ADVideoManager {
         }
         if (currentState == STATE_CAMERA_OPEN) {
             ADLogUtil.d("stopPreview")
-            ADCameraManager.closeCamera()
+            ADCameraController.closeCamera()
             currentState = STATE_PREVIEW_READY
         }
+    }
+
+    fun setFlashState(state: Boolean) {
+        ADCameraController.setFlashState(state)
+    }
+
+    fun setAutoFocusState(state: Boolean) {
+        ADCameraController.setAutoFocus(state)
     }
 
 }
