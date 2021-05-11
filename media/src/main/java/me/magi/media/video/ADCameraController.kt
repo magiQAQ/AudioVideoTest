@@ -7,10 +7,12 @@ import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
 import android.os.*
+import android.util.Size
 import android.view.Surface
 import me.magi.media.utils.ADAppUtil
 import me.magi.media.utils.ADLogUtil
 import me.magi.media.video.ADCameraConstant.*
+import java.util.*
 
 
 object ADCameraController {
@@ -41,6 +43,8 @@ object ADCameraController {
     private var mPreviewSurface: Surface? = null
     // 图像采样器
     private var mImageReader: ImageReader? = null
+
+    private var outputSize = Size(1280, 720)
 
 
     init {
@@ -79,7 +83,7 @@ object ADCameraController {
 
     fun getBackCameraCount() = mBackCameraIds.size
 
-    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
+    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0, previewWidth: Int, previewHeight: Int) {
         val previewSurface = mPreviewSurface
         if (previewSurface == null || !previewSurface.isValid) {
             return
@@ -99,6 +103,7 @@ object ADCameraController {
             return
         }
         mCameraHandler.post {
+            setupCameraOutput(cameraId, outputSize.width, outputSize.height)
             try {
                 ADAppUtil.cameraManager.openCamera(cameraId, mCameraStateCallback, mCameraHandler)
             } catch (e: CameraAccessException) {
@@ -134,9 +139,17 @@ object ADCameraController {
     }
 
     fun closeCamera() {
-        mCameraSession?.stopRepeating()
-        mCameraDevice?.close()
-        mCameraDevice = null
+        mCameraHandler.post {
+            mCameraSession?.stopRepeating()
+            mCameraDevice?.close()
+            mCameraDevice = null
+        }
+    }
+
+    private fun setupCameraOutput(cameraId: String, width: Int, height: Int) {
+        val cameraInfo = getCameraInfo(cameraId)?:return
+        val sizeArray = cameraInfo.getOutputSize()?:return
+
     }
 
     private fun getImageReader(width: Int, height: Int): ImageReader {

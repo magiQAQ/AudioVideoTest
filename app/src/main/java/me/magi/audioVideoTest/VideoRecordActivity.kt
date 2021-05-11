@@ -5,20 +5,27 @@ import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Size
 import android.view.TextureView
 import android.view.View
 import android.widget.Button
 import me.magi.media.video.ADCameraConstant
+import me.magi.media.video.ADPushConfig
 import me.magi.media.video.ADVideoManager
 
 class VideoRecordActivity : AppCompatActivity() {
 
     private lateinit var textureView: TextureView
+    private lateinit var size: Size
+    private lateinit var pushConfig: ADPushConfig
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_video_record)
         textureView = findViewById(R.id.textureView)
+        pushConfig = ADPushConfig()
+        pushConfig.setResolution(ADCameraConstant.RESOLUTION_1280_720)
+        ADVideoManager.setPushConfig(pushConfig)
 
         ADVideoManager.setTextureView(textureView)
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {

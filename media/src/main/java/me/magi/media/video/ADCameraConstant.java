@@ -12,9 +12,9 @@ public final class ADCameraConstant {
     // 后置摄像头
     public static final int CAMERA_FACING_BACK = 1;
     // 摄像头分辨率
-    public static final int RESOLUTION_360P = 5;
-    public static final int RESOLUTION_720P = 6;
-    public static final int RESOLUTION_1080P = 7;
+    public static final int RESOLUTION_640_360 = 5;
+    public static final int RESOLUTION_1280_720 = 6;
+    public static final int RESOLUTION_1920_1080 = 7;
 
     public static final int ERROR_UNKNOWN = -1000;
     public static final int ERROR_CAMERA_DISABLED = -1001;
@@ -37,4 +37,11 @@ public final class ADCameraConstant {
     @Retention(RetentionPolicy.SOURCE)
     public @interface ADFacingDef{}
 
+    @IntDef({
+            RESOLUTION_640_360,
+            RESOLUTION_1280_720,
+            RESOLUTION_1920_1080
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ADResolutionDef{}
 }
