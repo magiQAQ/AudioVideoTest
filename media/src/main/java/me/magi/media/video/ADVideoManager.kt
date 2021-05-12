@@ -69,6 +69,7 @@ object ADVideoManager {
                 matrix.setRectToRect(previewRect, targetRect, Matrix.ScaleToFit.FILL)
                 textureView.setTransform(matrix)
                 // 解决预览拉伸变形问题 end
+                surface.setDefaultBufferSize(targetWidth.toInt(), targetHeight.toInt())
                 mPreviewSurface = Surface(surface)
                 ADCameraController.setPreviewSurface(mPreviewSurface)
                 currentState = STATE_PREVIEW_READY
