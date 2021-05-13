@@ -10,17 +10,10 @@ import me.magi.media.utils.ADLogUtil
 import java.lang.ref.WeakReference
 
 object ADVideoManager {
-    private const val STATE_PREVIEW_READY = 1
-    private const val STATE_CAMERA_OPEN = 2
 
     private var mTextureViewHolder: WeakReference<TextureView>? = null
     private var mPreviewSurface: Surface? = null
 
-    private var currentState = 0
-    private var targetState = 0
-
-    private var cameraFacing = ADCameraConstant.CAMERA_FACING_BACK
-    private var cameraIndex = 0
 
     private var mPushConfig: ADPushConfig? = null
 
@@ -31,15 +24,39 @@ object ADVideoManager {
         ADLogUtil.d("front: ${ADCameraController.getFrontCameraCount()}, back: ${ADCameraController.getBackCameraCount()}")
     }
 
-    fun setPushConfig(pushConfig: ADPushConfig) {
-        mPushConfig = pushConfig
-    }
-
-    fun setTextureView(textureView: TextureView) {
+    fun setTextureView(textureView: TextureView?) {
+        if (textureView == null) {
+            ADLogUtil.d("removeTextureView")
+            mTextureViewHolder = null
+            return
+        }
         ADLogUtil.d("setTextureView")
-        targetState = STATE_PREVIEW_READY
         mTextureViewHolder = WeakReference(textureView)
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+
+            /**
+             * 解决预览拉伸变形问题 start
+             */
+            private fun scalePreview(viewWidth: Int, viewHeight: Int, previewWidth: Int, previewHeight: Int) {
+                val previewRect = RectF(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
+                var aspect = previewWidth.toFloat() / previewHeight
+                if (textureView.context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    aspect = 1 / aspect
+                }
+                val targetWidth: Float
+                val targetHeight: Float
+                if (viewWidth < (viewHeight * aspect)) {
+                    targetWidth = viewWidth.toFloat()
+                    targetHeight = viewHeight.toFloat() * aspect
+                } else {
+                    targetWidth = viewWidth.toFloat() / aspect
+                    targetHeight = viewHeight.toFloat()
+                }
+                val targetRect = RectF(0f, 0f, targetWidth, targetHeight)
+                val matrix = Matrix()
+                matrix.setRectToRect(previewRect, targetRect, Matrix.ScaleToFit.FILL)
+                textureView.setTransform(matrix)
+            }
 
             override fun onSurfaceTextureAvailable(
                 surface: SurfaceTexture,
@@ -47,40 +64,9 @@ object ADVideoManager {
                 height: Int
             ) {
                 ADLogUtil.d("onSurfaceTextureAvailable")
-                // 解决预览拉伸变形问题 start
-                val previewRect = RectF(0f, 0f, width.toFloat(), height.toFloat())
-                val previewWidth = mPushConfig?.getWidth()?:1280
-                val previewHeight = mPushConfig?.getHeight()?:720
-                var aspect = previewWidth.toFloat()/previewHeight
-                if (textureView.context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                    aspect = 1/ aspect
-                }
-                val targetWidth: Float
-                val targetHeight: Float
-                if (width < (height * aspect)) {
-                    targetWidth = width.toFloat()
-                    targetHeight = height.toFloat() * aspect
-                } else {
-                    targetWidth = width.toFloat() / aspect
-                    targetHeight = height.toFloat()
-                }
-                val targetRect = RectF(0f, 0f, targetWidth, targetHeight)
-                val matrix = Matrix()
-                matrix.setRectToRect(previewRect, targetRect, Matrix.ScaleToFit.FILL)
-                textureView.setTransform(matrix)
-                // 解决预览拉伸变形问题 end
-                surface.setDefaultBufferSize(targetWidth.toInt(), targetHeight.toInt())
-                mPreviewSurface = Surface(surface)
-                ADCameraController.setPreviewSurface(mPreviewSurface)
-                currentState = STATE_PREVIEW_READY
-                if (targetState == STATE_CAMERA_OPEN) {
-                    ADCameraController.openCamera(
-                        cameraFacing,
-                        cameraIndex,
-                        previewWidth,
-                        previewHeight
-                    )
-                }
+                val previewSurface = Surface(surface)
+                mPreviewSurface = previewSurface
+                ADCameraDataProcessor.setPreviewSurface(previewSurface)
             }
 
             override fun onSurfaceTextureSizeChanged(
@@ -93,8 +79,7 @@ object ADVideoManager {
 
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                 ADLogUtil.d("onSurfaceTextureDestroyed")
-                currentState = 0
-                ADCameraController.setPreviewSurface(null)
+                ADCameraDataProcessor.setPreviewSurface(null)
                 mPreviewSurface?.release()
                 return false
             }
@@ -104,35 +89,24 @@ object ADVideoManager {
         }
     }
 
-    fun startPreview(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
-        if (mTextureViewHolder == null || targetState < STATE_PREVIEW_READY) {
-            // 没有设置预览界面
-            return
-        }
-        if (currentState == STATE_CAMERA_OPEN) {
-            return
-        }
-        val previewWidth = 1280
-        val preHeight = 720
+    fun setPushConfig(pushConfig: ADPushConfig) {
+        mPushConfig = pushConfig
+    }
+
+    fun startPreview() {
+        if(mPushConfig == null) mPushConfig = ADPushConfig()
         ADLogUtil.d("startPreview")
-        targetState = STATE_CAMERA_OPEN
-        if (mPreviewSurface != null && currentState == STATE_PREVIEW_READY) {
-            currentState = STATE_CAMERA_OPEN
-            ADCameraController.openCamera(cameraFacing, index, previewWidth, preHeight)
-        }
+        ADCameraController.openCamera(
+            mPushConfig!!.mCameraFacing,
+            mPushConfig!!.mCameraIndex,
+            mPushConfig!!.mSize.width,
+            mPushConfig!!.mSize.height
+        )
     }
 
     fun stopPreview() {
-        targetState = if (mTextureViewHolder != null) {
-            STATE_PREVIEW_READY
-        } else {
-            0
-        }
-        if (currentState == STATE_CAMERA_OPEN) {
-            ADLogUtil.d("stopPreview")
-            ADCameraController.closeCamera()
-            currentState = STATE_PREVIEW_READY
-        }
+        ADLogUtil.d("stopPreview")
+        ADCameraController.closeCamera()
     }
 
     fun setFlashState(state: Boolean) {

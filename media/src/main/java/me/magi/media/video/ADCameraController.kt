@@ -15,7 +15,7 @@ import me.magi.media.video.ADCameraConstant.*
 import java.util.*
 
 
-object ADCameraController {
+internal object ADCameraController {
 
     private val mHandlerThread by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -75,20 +75,11 @@ object ADCameraController {
         mCallback = callback
     }
 
-    fun setPreviewSurface(previewSurface: Surface?) {
-        mPreviewSurface = previewSurface
-    }
-
     fun getFrontCameraCount() = mFrontCameraIds.size
 
     fun getBackCameraCount() = mBackCameraIds.size
 
     fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0, previewWidth: Int, previewHeight: Int) {
-        val previewSurface = mPreviewSurface
-        if (previewSurface == null || !previewSurface.isValid) {
-            return
-        }
-
         // 优先开启后置摄像头
         val cameraId = if (cameraFacing == CAMERA_FACING_FRONT) {
             mFrontCameraIds.getOrNull(index)

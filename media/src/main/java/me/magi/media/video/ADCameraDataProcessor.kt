@@ -35,7 +35,7 @@ object ADCameraDataProcessor {
         }
     }
 
-    fun setPreviewSurface(previewSurface: Surface) {
+    fun setPreviewSurface(previewSurface: Surface?) {
         mPreviewSurface = previewSurface
     }
 }
