@@ -1,33 +1,29 @@
 package me.magi.media.video
 
-import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraAccessException.*
-import android.hardware.camera2.params.OutputConfiguration
-import android.hardware.camera2.params.SessionConfiguration
-import android.media.ImageReader
 import android.os.*
 import android.util.Size
 import android.view.Surface
 import me.magi.media.utils.ADAppUtil
 import me.magi.media.utils.ADLogUtil
 import me.magi.media.video.ADCameraConstant.*
+import java.lang.Long.signum
 import java.util.*
+import kotlin.Comparator
 
+internal class ADCameraHandler(looper: Looper): Handler(looper) {
 
-internal object ADCameraController {
-
-    private val mHandlerThread by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            HandlerThread("CameraThread", Process.THREAD_PRIORITY_VIDEO)
-        } else {
-            HandlerThread("CameraThread")
-        }
+    companion object {
+        internal const val WHAT_OPEN_CAMERA = 1
+        internal const val WHAT_OPEN_SESSION = 2
+        internal const val WHAT_BUILD_REQUEST = 3
+        internal const val WHAT_CLOSE_CAMERA = 4
+        internal const val WHAT_SWITCH_CAMERA = 5
+        internal const val WHAT_SET_SURFACE_TEXTURE = 6
     }
-    private val mCameraHandler by lazy {
-        mHandlerThread.start()
-        Handler(mHandlerThread.looper)
-    }
+
     private var mFrontCameraIds = mutableListOf<String>()
     private var mBackCameraIds = mutableListOf<String>()
     private var mCameraInfoMap = hashMapOf<String, ADCameraInfo>()
@@ -40,11 +36,11 @@ internal object ADCameraController {
     // 对外的回调
     private var mCallback: ADCameraCallback? = null
     // 外部的预览输出缓冲区
-    private var mPreviewSurface: Surface? = null
-    // 图像采样器
-    private var mImageReader: ImageReader? = null
+    private var mSurface: Surface? = null
 
-    private var outputSize = Size(1280, 720)
+    private var mOutputSize = Size(1280, 720)
+
+    private var currentCameraId: String
 
 
     init {
@@ -69,6 +65,7 @@ internal object ADCameraController {
                 }
             }
         }
+        currentCameraId = mBackCameraIds.getOrNull(0)?:mFrontCameraIds.getOrNull(0)?:""
     }
 
     fun setCameraCallback(callback: ADCameraCallback) {
@@ -79,7 +76,11 @@ internal object ADCameraController {
 
     fun getBackCameraCount() = mBackCameraIds.size
 
-    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0, previewWidth: Int, previewHeight: Int) {
+    fun setSurfaceTexture(surfaceTexture: SurfaceTexture, size: Size) {
+        sendMessage(obtainMessage(WHAT_SET_SURFACE_TEXTURE, size.width, size.height, surfaceTexture))
+    }
+
+    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
         // 优先开启后置摄像头
         val cameraId = if (cameraFacing == CAMERA_FACING_FRONT) {
             mFrontCameraIds.getOrNull(index)
@@ -93,58 +94,37 @@ internal object ADCameraController {
             )
             return
         }
-        mCameraHandler.post {
-            setupCameraOutput(cameraId, outputSize.width, outputSize.height)
-            try {
-                ADAppUtil.cameraManager.openCamera(cameraId, mCameraStateCallback, mCameraHandler)
-            } catch (e: CameraAccessException) {
-                when(e.reason) {
-                    CAMERA_DISABLED -> mCallback?.onError(
-                        ERROR_CAMERA_DISABLED,
-                        "this camera device disable"
-                    )
-                    CAMERA_DISCONNECTED -> mCallback?.onError(
-                        ERROR_CAMERA_DISCONNECTED,
-                        "can not connect this camera device"
-                    )
-                    CAMERA_ERROR -> mCallback?.onError(
-                        ERROR_CAMERA_WRONG_STATUS,
-                        "this camera device in wrong status"
-                    )
-                    CAMERA_IN_USE -> mCallback?.onError(
-                        ERROR_CAMERA_IN_USE,
-                        "this camera in use by other"
-                    )
-                    MAX_CAMERAS_IN_USE -> mCallback?.onError(
-                        ERROR_CAMERA_MAX_USE_COUNT,
-                        "current device not support open together"
-                    )
-                    else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
-                }
-            } catch (e: IllegalArgumentException) {
-                mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
-            } catch (e: SecurityException) {
-                mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
-            }
-        }
+        sendMessage(obtainMessage(WHAT_OPEN_CAMERA, cameraId))
     }
 
     fun closeCamera() {
-        mCameraHandler.post {
-            mCameraSession?.stopRepeating()
-            mCameraDevice?.close()
-            mCameraDevice = null
+        sendMessage(obtainMessage(WHAT_CLOSE_CAMERA))
+    }
+
+    private fun getOptimalSize(targetWidth: Int, targetHeight: Int): Size? {
+        if (currentCameraId.isEmpty()) return null
+        val nativeSizes = mCameraInfoMap[currentCameraId]!!.getOutputSize()?:return null
+        val bigEnough = ArrayList<Size>()
+        val notBigEnough = ArrayList<Size>()
+
+        for (nativeSize in nativeSizes) {
+            if (nativeSize.width/nativeSize.height == targetWidth/targetHeight) {
+                if (nativeSize.width >= targetWidth) {
+                    bigEnough.add(nativeSize)
+                } else {
+                    notBigEnough.add(nativeSize)
+                }
+            }
         }
-    }
+        val comparator = Comparator<Size> { o1, o2 ->
+            signum(o1.width.toLong() * o1.height - o2.width.toLong() * o2.height)
+        }
 
-    private fun setupCameraOutput(cameraId: String, width: Int, height: Int) {
-        val cameraInfo = getCameraInfo(cameraId)?:return
-        val sizeArray = cameraInfo.getOutputSize()?:return
-
-    }
-
-    private fun getImageReader(width: Int, height: Int): ImageReader {
-        return ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 2)
+        return when {
+            bigEnough.size > 0 -> Collections.min(bigEnough, comparator)
+            notBigEnough.size > 0 -> Collections.max(notBigEnough, comparator)
+            else -> null
+        }
     }
 
     private fun getCameraInfo(cameraId: String): ADCameraInfo? {
@@ -155,19 +135,11 @@ internal object ADCameraController {
         override fun onOpened(camera: CameraDevice) {
             ADLogUtil.d("camera ${camera.id} onOpened")
             mCameraDevice = camera
-            val previewSurface = mPreviewSurface
-            if (previewSurface == null) {
-                camera.close()
-            } else {
-                camera.createCaptureSession(
-                    listOf(previewSurface),
-                    mSessionStateCallback,
-                    mCameraHandler
-                )
-            }
-//            mImageReader = getImageReader(1280, 720)
-//            mImageReaderSurface = mImageReader?.surface
-
+            camera.createCaptureSession(
+                listOf(mSurface),
+                mSessionStateCallback,
+                this@ADCameraHandler
+            )
         }
 
         override fun onDisconnected(camera: CameraDevice) {
@@ -207,9 +179,12 @@ internal object ADCameraController {
 
         override fun onClosed(camera: CameraDevice) {
             super.onClosed(camera)
+            try {
+                mCameraSession?.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             ADLogUtil.d("camera ${camera.id} onClosed")
-            mImageReader?.close()
-            mImageReader = null
             mCameraDevice = null
         }
     }
@@ -220,11 +195,11 @@ internal object ADCameraController {
             ADLogUtil.d("camera session onConfigured")
             mCameraSession = session
             val cameraDevice = session.device
-            val previewSurface = mPreviewSurface?:return
+            val surface = mSurface?:return
             try {
                 val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
                 // 运行时参数
-                requestBuilder.addTarget(previewSurface)
+                requestBuilder.addTarget(surface)
                 // 自动聚焦
                 requestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
                 // 自动曝光，但是不自动开启闪光灯
@@ -325,4 +300,59 @@ internal object ADCameraController {
         }
     }
 
+    override fun handleMessage(msg: Message) {
+        super.handleMessage(msg)
+        when(msg.what) {
+            WHAT_OPEN_CAMERA -> {
+                val cameraId = msg.obj as String
+                try {
+                    ADAppUtil.cameraManager.openCamera(cameraId, mCameraStateCallback, this)
+                } catch (e: CameraAccessException) {
+                    when(e.reason) {
+                        CAMERA_DISABLED -> mCallback?.onError(
+                            ERROR_CAMERA_DISABLED,
+                            "this camera device disable"
+                        )
+                        CAMERA_DISCONNECTED -> mCallback?.onError(
+                            ERROR_CAMERA_DISCONNECTED,
+                            "can not connect this camera device"
+                        )
+                        CAMERA_ERROR -> mCallback?.onError(
+                            ERROR_CAMERA_WRONG_STATUS,
+                            "this camera device in wrong status"
+                        )
+                        CAMERA_IN_USE -> mCallback?.onError(
+                            ERROR_CAMERA_IN_USE,
+                            "this camera in use by other"
+                        )
+                        MAX_CAMERAS_IN_USE -> mCallback?.onError(
+                            ERROR_CAMERA_MAX_USE_COUNT,
+                            "current device not support open together"
+                        )
+                        else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
+                    }
+                } catch (e: IllegalArgumentException) {
+                    mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
+                } catch (e: SecurityException) {
+                    mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
+                }
+            }
+            WHAT_CLOSE_CAMERA -> {
+                mCameraSession?.stopRepeating()
+                mCameraDevice?.close()
+                mCameraDevice = null
+            }
+            WHAT_SET_SURFACE_TEXTURE -> {
+                val size = getOptimalSize(/* width */msg.arg1,/* height */ msg.arg2)
+                if (size == null) {
+                    mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
+                    return
+                }
+                val surfaceTexture = msg.obj as SurfaceTexture
+                mOutputSize = Size(/* width */msg.arg1,/* height */ msg.arg2)
+                surfaceTexture.setDefaultBufferSize(mOutputSize.width, mOutputSize.height)
+                mSurface = Surface(surfaceTexture)
+            }
+        }
+    }
 }

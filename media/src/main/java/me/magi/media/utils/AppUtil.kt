@@ -24,7 +24,7 @@ object ADAppUtil{
 
     val cameraManager: CameraManager by lazy { mApplication.getSystemService(CameraManager::class.java) }
 
-    val executor: Executor by lazy { Executors.newCachedThreadPool() }
+//    val executor: Executor by lazy { Executors.newCachedThreadPool() }
 
 }
 

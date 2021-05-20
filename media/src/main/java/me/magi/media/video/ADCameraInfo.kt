@@ -1,6 +1,7 @@
 package me.magi.media.video
 
 import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.util.Size
 import me.magi.media.utils.ADAppUtil
@@ -14,7 +15,7 @@ class ADCameraInfo(cameraId: String) {
     }
 
     fun getOutputSize(): Array<Size>? {
-        return mCameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.getOutputSizes(ImageFormat.YUV_420_888)
+        return mCameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.getOutputSizes(SurfaceTexture::class.java)
     }
 
     fun isSupportFlash(): Boolean {
