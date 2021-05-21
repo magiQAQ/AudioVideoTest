@@ -1,50 +1,48 @@
 package me.magi.media.video
 
-import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraAccessException.*
-import android.hardware.camera2.params.OutputConfiguration
-import android.hardware.camera2.params.SessionConfiguration
-import android.media.ImageReader
 import android.os.*
 import android.util.Size
 import android.view.Surface
 import me.magi.media.utils.ADAppUtil
 import me.magi.media.utils.ADLogUtil
 import me.magi.media.video.ADCameraConstant.*
+import java.lang.Long.signum
 import java.util.*
+import kotlin.Comparator
 
+internal class ADCameraController {
 
-internal object ADCameraController {
-
-    private val mHandlerThread by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            HandlerThread("CameraThread", Process.THREAD_PRIORITY_VIDEO)
-        } else {
-            HandlerThread("CameraThread")
-        }
-    }
-    private val mCameraHandler by lazy {
-        mHandlerThread.start()
-        Handler(mHandlerThread.looper)
-    }
     private var mFrontCameraIds = mutableListOf<String>()
     private var mBackCameraIds = mutableListOf<String>()
     private var mCameraInfoMap = hashMapOf<String, ADCameraInfo>()
+
     // 当前正在使用的摄像头
     private var mCameraDevice: CameraDevice? = null
+
     // 当前摄像头开启的会话
     private var mCameraSession: CameraCaptureSession? = null
+
     // 摄像头的录制请求
     private var mCaptureRequestBuilder: CaptureRequest.Builder? = null
+
     // 对外的回调
     private var mCallback: ADCameraCallback? = null
-    // 外部的预览输出缓冲区
-    private var mPreviewSurface: Surface? = null
-    // 图像采样器
-    private var mImageReader: ImageReader? = null
 
-    private var outputSize = Size(1280, 720)
+    // 外部的预览输出缓冲区
+    private var mSurface: Surface? = null
+
+    // 尺寸
+    private var mOutputSize = Size(1280, 720)
+
+    // 当前开启的摄像头Id
+    private var currentCameraId: String
+
+    // 摄像头线程
+    private var mCameraThread: HandlerThread? = null
+    private var mCameraHandler: Handler? = null
 
 
     init {
@@ -69,6 +67,7 @@ internal object ADCameraController {
                 }
             }
         }
+        currentCameraId = mBackCameraIds.getOrNull(0) ?: mFrontCameraIds.getOrNull(0) ?: ""
     }
 
     fun setCameraCallback(callback: ADCameraCallback) {
@@ -79,26 +78,77 @@ internal object ADCameraController {
 
     fun getBackCameraCount() = mBackCameraIds.size
 
-    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0, previewWidth: Int, previewHeight: Int) {
-        // 优先开启后置摄像头
-        val cameraId = if (cameraFacing == CAMERA_FACING_FRONT) {
+    private fun startCameraThread() {
+        var cameraThread = mCameraThread
+        if (cameraThread != null && cameraThread.isAlive) {
+            return
+        }
+        cameraThread = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            HandlerThread("CameraThread", Process.THREAD_PRIORITY_VIDEO)
+        } else {
+            HandlerThread("CameraThread")
+        }
+        cameraThread.start()
+        val cameraHandler = Handler(cameraThread.looper)
+        mCameraThread = cameraThread
+        mCameraHandler = cameraHandler
+    }
+
+    private fun stopCameraThread() {
+        mCameraHandler?.removeCallbacksAndMessages(null)
+        mCameraThread?.quitSafely()
+        mCameraThread?.join()
+        mCameraHandler = null
+        mCameraThread = null
+    }
+
+    private fun getCameraId(
+        @ADCameraConstant.ADFacingDef cameraFacing: Int,
+        index: Int = 0
+    ): String? {
+        return if (cameraFacing == CAMERA_FACING_FRONT) {
             mFrontCameraIds.getOrNull(index)
         } else {
             mBackCameraIds.getOrNull(index)
         }
-        if (cameraId == null) {
-            mCallback?.onError(
-                ERROR_NO_THIS_CAMERA,
-                "no this camera device with cameraFacing: $cameraFacing,index: $index"
-            )
-            return
+    }
+
+    private fun getOptimalSize(targetWidth: Int, targetHeight: Int): Size? {
+        if (currentCameraId.isEmpty()) return null
+        val nativeSizes = mCameraInfoMap[currentCameraId]!!.getOutputSize() ?: return null
+        val bigEnough = ArrayList<Size>()
+        val notBigEnough = ArrayList<Size>()
+
+        for (nativeSize in nativeSizes) {
+            if (nativeSize.width / nativeSize.height == targetWidth / targetHeight) {
+                if (nativeSize.width >= targetWidth) {
+                    bigEnough.add(nativeSize)
+                } else {
+                    notBigEnough.add(nativeSize)
+                }
+            }
         }
-        mCameraHandler.post {
-            setupCameraOutput(cameraId, outputSize.width, outputSize.height)
+        val comparator = Comparator<Size> { o1, o2 ->
+            signum(o1.width.toLong() * o1.height - o2.width.toLong() * o2.height)
+        }
+
+        return when {
+            bigEnough.size > 0 -> Collections.min(bigEnough, comparator)
+            notBigEnough.size > 0 -> Collections.max(notBigEnough, comparator)
+            else -> null
+        }
+    }
+
+    private fun getCameraInfo(cameraId: String): ADCameraInfo? {
+        return mCameraInfoMap[cameraId]
+    }
+
+    private fun open(cameraId: String) {
+        mCameraHandler?.post {
             try {
                 ADAppUtil.cameraManager.openCamera(cameraId, mCameraStateCallback, mCameraHandler)
             } catch (e: CameraAccessException) {
-                when(e.reason) {
+                when (e.reason) {
                     CAMERA_DISABLED -> mCallback?.onError(
                         ERROR_CAMERA_DISABLED,
                         "this camera device disable"
@@ -119,7 +169,10 @@ internal object ADCameraController {
                         ERROR_CAMERA_MAX_USE_COUNT,
                         "current device not support open together"
                     )
-                    else -> mCallback?.onError(ERROR_UNKNOWN, "appear unknown error with open camera")
+                    else -> mCallback?.onError(
+                        ERROR_UNKNOWN,
+                        "appear unknown error with open camera"
+                    )
                 }
             } catch (e: IllegalArgumentException) {
                 mCallback?.onError(ERROR_NO_THIS_CAMERA, "this cameraId not in cameraIdsList")
@@ -129,45 +182,11 @@ internal object ADCameraController {
         }
     }
 
-    fun closeCamera() {
-        mCameraHandler.post {
-            mCameraSession?.stopRepeating()
-            mCameraDevice?.close()
-            mCameraDevice = null
-        }
-    }
-
-    private fun setupCameraOutput(cameraId: String, width: Int, height: Int) {
-        val cameraInfo = getCameraInfo(cameraId)?:return
-        val sizeArray = cameraInfo.getOutputSize()?:return
-
-    }
-
-    private fun getImageReader(width: Int, height: Int): ImageReader {
-        return ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 2)
-    }
-
-    private fun getCameraInfo(cameraId: String): ADCameraInfo? {
-        return mCameraInfoMap[cameraId]
-    }
-
     private val mCameraStateCallback = object : CameraDevice.StateCallback() {
         override fun onOpened(camera: CameraDevice) {
             ADLogUtil.d("camera ${camera.id} onOpened")
             mCameraDevice = camera
-            val previewSurface = mPreviewSurface
-            if (previewSurface == null) {
-                camera.close()
-            } else {
-                camera.createCaptureSession(
-                    listOf(previewSurface),
-                    mSessionStateCallback,
-                    mCameraHandler
-                )
-            }
-//            mImageReader = getImageReader(1280, 720)
-//            mImageReaderSurface = mImageReader?.surface
-
+            camera.createCaptureSession(listOf(mSurface), mSessionStateCallback, mCameraHandler)
         }
 
         override fun onDisconnected(camera: CameraDevice) {
@@ -180,7 +199,7 @@ internal object ADCameraController {
             ADLogUtil.d("camera ${camera.id} onError,errorCode: $error")
             camera.close()
             mCameraDevice = null
-            when(error) {
+            when (error) {
                 ERROR_CAMERA_IN_USE -> mCallback?.onError(
                     ADCameraConstant.ERROR_CAMERA_IN_USE,
                     "this camera in use by other"
@@ -207,48 +226,75 @@ internal object ADCameraController {
 
         override fun onClosed(camera: CameraDevice) {
             super.onClosed(camera)
+            try {
+                mCameraSession?.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             ADLogUtil.d("camera ${camera.id} onClosed")
-            mImageReader?.close()
-            mImageReader = null
             mCameraDevice = null
         }
     }
 
-    private val mSessionStateCallback = object : CameraCaptureSession.StateCallback(){
+    private val mSessionStateCallback = object : CameraCaptureSession.StateCallback() {
 
         override fun onConfigured(session: CameraCaptureSession) {
             ADLogUtil.d("camera session onConfigured")
             mCameraSession = session
             val cameraDevice = session.device
-            val previewSurface = mPreviewSurface?:return
+            val surface = mSurface?:return
             try {
                 val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
                 // 运行时参数
-                requestBuilder.addTarget(previewSurface)
+                requestBuilder.addTarget(surface)
                 // 自动聚焦
-                requestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                requestBuilder.set(
+                    CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+                )
                 // 自动曝光，但是不自动开启闪光灯
-                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                requestBuilder.set(
+                    CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON
+                )
                 mCaptureRequestBuilder = requestBuilder
                 ADLogUtil.d("camera requestBuilder generated")
             } catch (e: Exception) {
                 when (e) {
-                    is IllegalArgumentException -> mCallback?.onError(ERROR_CAMERA_NOT_SUPPORT_RECORD, "this camera not support record")
-                    is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
-                    is IllegalStateException -> mCallback?.onError(ERROR_CAMERA_CLOSED, "camera has closed")
+                    is IllegalArgumentException -> mCallback?.onError(
+                        ERROR_CAMERA_NOT_SUPPORT_RECORD,
+                        "this camera not support record"
+                    )
+                    is CameraAccessException -> mCallback?.onError(
+                        ERROR_CAMERA_DISCONNECTED,
+                        "camera disconnect"
+                    )
+                    is IllegalStateException -> mCallback?.onError(
+                        ERROR_CAMERA_CLOSED,
+                        "camera has closed"
+                    )
                 }
             }
-            try {
-                mCaptureRequestBuilder?.let { session.setRepeatingRequest(it.build(), null, null) }
+            val request = mCaptureRequestBuilder?.build()?:return
+            try{
+                session.setRepeatingRequest(request, null, null)
                 ADLogUtil.d("camera request build")
             } catch (e: Exception) {
                 when (e) {
-                    is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
-                    is IllegalStateException -> mCallback?.onError(ERROR_SESSION_INVALID, "camera session invalid")
-                    is IllegalArgumentException -> mCallback?.onError(ERROR_SURFACE_INVALID, "surface not config or invalid")
+                    is CameraAccessException -> mCallback?.onError(
+                        ERROR_CAMERA_DISCONNECTED,
+                        "camera disconnect"
+                    )
+                    is IllegalStateException -> mCallback?.onError(
+                        ERROR_SESSION_INVALID,
+                        "camera session invalid"
+                    )
+                    is IllegalArgumentException -> mCallback?.onError(
+                        ERROR_SURFACE_INVALID,
+                        "surface not config or invalid"
+                    )
                 }
             }
-
         }
 
         override fun onConfigureFailed(session: CameraCaptureSession) {
@@ -268,29 +314,87 @@ internal object ADCameraController {
 
     }
 
+    fun setSurfaceTexture(surfaceTexture: SurfaceTexture, size: Size) {
+        mCameraHandler?.post {
+            val optimalSize = getOptimalSize(size.width, size.height)
+            if (optimalSize == null) {
+                mCallback?.onError(ERROR_NO_PERMISSION, "application has not camera permission")
+                return@post
+            }
+            mOutputSize = Size(optimalSize.width, optimalSize.height)
+            surfaceTexture.setDefaultBufferSize(mOutputSize.width, mOutputSize.height)
+            mSurface = Surface(surfaceTexture)
+        }
+    }
+
+    fun openCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int = 0) {
+        val cameraId = getCameraId(cameraFacing, index)
+        if (cameraId == null) {
+            mCallback?.onError(
+                ERROR_NO_THIS_CAMERA,
+                "no this camera device with cameraFacing: $cameraFacing,index: $index"
+            )
+            return
+        }
+        open(cameraId)
+    }
+
+    fun closeCamera() {
+        mCameraHandler?.post {
+            mCameraSession?.stopRepeating()
+            mCameraSession?.close()
+            mCameraSession = null
+            mCameraDevice?.close()
+            mCameraDevice = null
+        }
+    }
+
+    fun switchCamera(@ADCameraConstant.ADFacingDef cameraFacing: Int, index: Int) {
+        val cameraId = getCameraId(cameraFacing, index)
+        if (cameraId == null) {
+            mCallback?.onError(
+                ERROR_NO_THIS_CAMERA,
+                "no this camera device with cameraFacing: $cameraFacing,index: $index"
+            )
+            return
+        }
+        open(cameraId)
+    }
+
     /**
      * 录制设置自动对焦
      *
      * @param state 是否开启自动对焦
      */
     fun setAutoFocus(state: Boolean) {
-        val requestBuilder = mCaptureRequestBuilder
-        val session = mCameraSession
-        if (requestBuilder == null || session == null) return
-        ADLogUtil.d("camera ${if (state) "open" else "close"} AF")
-        requestBuilder.set(
-            CaptureRequest.CONTROL_AF_MODE,
-            if (state) CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
-            else CaptureRequest.CONTROL_AF_MODE_OFF
-        )
-        try {
-            session.stopRepeating()
-            session.setRepeatingRequest(requestBuilder.build(), null, null)
-        } catch (e: Exception) {
-            when (e) {
-                is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
-                is IllegalStateException -> mCallback?.onError(ERROR_SESSION_INVALID, "camera session invalid")
-                is IllegalArgumentException -> mCallback?.onError(ERROR_SURFACE_INVALID, "surface not config or invalid")
+        mCameraHandler?.post {
+            val requestBuilder = mCaptureRequestBuilder
+            val session = mCameraSession
+            if (requestBuilder == null || session == null) return@post
+            ADLogUtil.d("camera ${if (state) "open" else "close"} AF")
+            requestBuilder.set(
+                CaptureRequest.CONTROL_AF_MODE,
+                if (state) CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+                else CaptureRequest.CONTROL_AF_MODE_OFF
+            )
+            try {
+                session.stopRepeating()
+                session.setRepeatingRequest(requestBuilder.build(), null, null)
+            } catch (e: Exception) {
+                when (e) {
+                    is CameraAccessException -> mCallback?.onError(
+                        ERROR_CAMERA_DISCONNECTED,
+                        "camera disconnect"
+                    )
+                    is IllegalStateException -> mCallback?.onError(
+                        ERROR_SESSION_INVALID,
+                        "camera session invalid"
+                    )
+                    is IllegalArgumentException -> mCallback?.onError(
+                        ERROR_SURFACE_INVALID,
+                        "surface not config or invalid"
+                    )
+                }
             }
         }
     }
@@ -301,26 +405,37 @@ internal object ADCameraController {
      * @param state 是否开启闪光灯
      */
     fun setFlashState(state: Boolean) {
-        val requestBuilder = mCaptureRequestBuilder
-        val session = mCameraSession
-        if (requestBuilder == null || session == null) return
-        // 检查闪光灯是否可用
-        val cameraInfo = getCameraInfo(session.device.id)
-        if (cameraInfo?.isSupportFlash() != true) return
-        ADLogUtil.d("camera ${if (state) "open" else "close"} FlashLight")
-        requestBuilder.set(
-            CaptureRequest.FLASH_MODE,
-            if (state) CaptureRequest.FLASH_MODE_TORCH
-            else CaptureRequest.FLASH_MODE_OFF
-        )
-        try {
-            session.stopRepeating()
-            session.setRepeatingRequest(requestBuilder.build(), null, null)
-        } catch (e: Exception) {
-            when (e) {
-                is CameraAccessException -> mCallback?.onError(ERROR_CAMERA_DISCONNECTED, "camera disconnect")
-                is IllegalStateException -> mCallback?.onError(ERROR_SESSION_INVALID, "camera session invalid")
-                is IllegalArgumentException -> mCallback?.onError(ERROR_SURFACE_INVALID, "surface not config or invalid")
+        mCameraHandler?.post {
+            val requestBuilder = mCaptureRequestBuilder
+            val session = mCameraSession
+            if (requestBuilder == null || session == null) return@post
+            // 检查闪光灯是否可用
+            val cameraInfo = getCameraInfo(session.device.id)
+            if (cameraInfo?.isSupportFlash() != true) return@post
+            ADLogUtil.d("camera ${if (state) "open" else "close"} FlashLight")
+            requestBuilder.set(
+                CaptureRequest.FLASH_MODE,
+                if (state) CaptureRequest.FLASH_MODE_TORCH
+                else CaptureRequest.FLASH_MODE_OFF
+            )
+            try {
+                session.stopRepeating()
+                session.setRepeatingRequest(requestBuilder.build(), null, null)
+            } catch (e: Exception) {
+                when (e) {
+                    is CameraAccessException -> mCallback?.onError(
+                        ERROR_CAMERA_DISCONNECTED,
+                        "camera disconnect"
+                    )
+                    is IllegalStateException -> mCallback?.onError(
+                        ERROR_SESSION_INVALID,
+                        "camera session invalid"
+                    )
+                    is IllegalArgumentException -> mCallback?.onError(
+                        ERROR_SURFACE_INVALID,
+                        "surface not config or invalid"
+                    )
+                }
             }
         }
     }
