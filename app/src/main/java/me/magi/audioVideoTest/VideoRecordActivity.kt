@@ -9,8 +9,8 @@ import android.util.Size
 import android.view.TextureView
 import android.view.View
 import android.widget.Button
-import me.magi.media.video.ADCameraConstant
-import me.magi.media.video.ADPushConfig
+import me.magi.media.utils.ADLiveConstant
+import me.magi.media.ADPushConfig
 import me.magi.media.video.ADVideoManager
 
 class VideoRecordActivity : AppCompatActivity() {
@@ -24,7 +24,7 @@ class VideoRecordActivity : AppCompatActivity() {
         setContentView(R.layout.activity_video_record)
         textureView = findViewById(R.id.textureView)
         pushConfig = ADPushConfig()
-        pushConfig.setResolution(ADCameraConstant.RESOLUTION_1280_720)
+        pushConfig.setResolution(ADLiveConstant.RESOLUTION_1280_720)
         ADVideoManager.setPushConfig(pushConfig)
 
         ADVideoManager.setTextureView(textureView)
@@ -34,7 +34,7 @@ class VideoRecordActivity : AppCompatActivity() {
     }
 
     fun startPreview(view: View) {
-        ADVideoManager.startPreview(ADCameraConstant.CAMERA_FACING_BACK)
+        ADVideoManager.startPreview(ADLiveConstant.CAMERA_FACING_BACK)
     }
 
     fun stopPreview(view: View) {

@@ -1,15 +1,14 @@
 package me.magi.media.video
 
-import me.magi.media.widget.ADRenderView
+import android.graphics.SurfaceTexture
+import me.magi.media.ADLiveConfig
+import me.magi.media.ADPusherView
+import java.lang.ref.WeakReference
 
-class ADLivePusher {
+class ADLivePusher(private val liveConfig: ADLiveConfig) {
 
-    private var cameraController = ADCameraController()
-    private var mRenderView: ADRenderView? = null
+    private var mRenderViewHolder: WeakReference<ADPusherView>? = null
 
-    fun setRenderView(renderView: ADRenderView) {
-        mRenderView = renderView
-    }
 
 
 

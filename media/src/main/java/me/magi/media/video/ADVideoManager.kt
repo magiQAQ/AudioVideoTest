@@ -6,6 +6,7 @@ import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
+import me.magi.media.ADPushConfig
 import me.magi.media.utils.ADLogUtil
 import java.lang.ref.WeakReference
 
