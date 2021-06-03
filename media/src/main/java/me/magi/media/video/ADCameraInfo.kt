@@ -1,15 +1,13 @@
 package me.magi.media.video
 
-import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.util.Range
 import android.util.Size
-import me.magi.media.utils.ADAppUtil
 
 class ADCameraInfo(cameraId: String) {
 
-    private val mCameraCharacteristics = ADAppUtil.cameraManager.getCameraCharacteristics(cameraId)
+    private val mCameraCharacteristics = ADCameraController.cameraManager.getCameraCharacteristics(cameraId)
 
     fun getCameraOrientation(): Int {
         return mCameraCharacteristics[CameraCharacteristics.SENSOR_ORIENTATION]!!

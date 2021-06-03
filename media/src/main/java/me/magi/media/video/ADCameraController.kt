@@ -7,10 +7,10 @@ import android.os.*
 import android.util.Range
 import android.util.Size
 import android.view.Surface
-import me.magi.media.utils.ADAppUtil
 import me.magi.media.utils.ADLiveConstant
 import me.magi.media.utils.ADLogUtil
 import me.magi.media.utils.ADLiveConstant.*
+import me.magi.media.utils.getApp
 import java.lang.Long.signum
 import kotlin.math.abs
 import java.util.*
@@ -18,15 +18,16 @@ import java.util.*
 internal class ADCameraController {
 
     companion object {
+        val cameraManager: CameraManager = getApp().getSystemService(CameraManager::class.java)
         private var mFrontCameraIds = mutableListOf<String>()
         private var mBackCameraIds = mutableListOf<String>()
         private var mCameraInfoMap = hashMapOf<String, ADCameraInfo>()
 
         init {
-            val cameraIdList = ADAppUtil.cameraManager.cameraIdList
+            val cameraIdList = cameraManager.cameraIdList
             ADLogUtil.d("cameraDeviceCount: ${cameraIdList.size}")
             for (cameraId in cameraIdList) {
-                val cameraCharacteristics = ADAppUtil.cameraManager.getCameraCharacteristics(cameraId)
+                val cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId)
                 val cameraInfo = ADCameraInfo(cameraId)
                 // 如果摄像头不支持YUV_420_888，也排除掉
                 if (cameraInfo.getOutputSize() == null) {
@@ -315,7 +316,7 @@ internal class ADCameraController {
     internal fun openCamera() {
         mCameraHandler.post {
             try {
-                ADAppUtil.cameraManager.openCamera(currentCameraId, mCameraStateCallback, mCameraHandler)
+                cameraManager.openCamera(currentCameraId, mCameraStateCallback, mCameraHandler)
             } catch (e: CameraAccessException) {
                 when (e.reason) {
                     CAMERA_DISABLED -> mCallback?.onError(
@@ -359,6 +360,10 @@ internal class ADCameraController {
             mCameraDevice?.close()
             mCameraDevice = null
         }
+    }
+
+    internal fun isCameraOpen(): Boolean{
+        return mCameraDevice != null
     }
 
     /**
