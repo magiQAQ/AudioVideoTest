@@ -3,10 +3,10 @@ package me.magi.media.video
 import android.graphics.SurfaceTexture
 import me.magi.media.utils.ADLiveConstant
 
-class ADVideoEngine(private val config: ADVideoConfig) {
+internal class ADVideoEngine(private val config: ADVideoConfig) {
 
     companion object{
-        private const val CAMERA_TEXTURE_ID = 1000
+        internal const val CAMERA_TEXTURE_ID = 1000
     }
 
     private var isPreviewing = false

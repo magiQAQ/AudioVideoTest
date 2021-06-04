@@ -3,9 +3,11 @@ package me.magi.media.video
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.opengl.EGL14
+import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.os.*
 import android.util.Size
+import android.view.Surface
 import me.magi.media.filter.BaseHardVideoFilter
 import me.magi.media.model.MediaCodecGLWrapper
 import me.magi.media.model.OffScreenGLWrapper
@@ -41,6 +43,10 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
 
     private var isPreview = false
     private var isStream = false
+
+    private var isEnableMirror = false
+    private var isEnablePreviewMirror = false
+    private var isEnableStreamMirror = false
 
     init {
         val videoThread = HandlerThread("VideoThread")
@@ -128,6 +134,12 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
         }
     }
 
+    internal fun setMirror(isEnableMirror: Boolean, isEnablePreviewMirror: Boolean, isEnableStreamMirror: Boolean) {
+        this.isEnableMirror = isEnableMirror
+        this.isEnablePreviewMirror = isEnablePreviewMirror
+        this.isEnableStreamMirror = isEnableStreamMirror
+    }
+
     // cameraTexture有可用帧时,该方法会被调用
     internal fun onFrameAvailable() {
         mVideoHandler.addFrameNum()
@@ -137,12 +149,13 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
         mVideoHandler.setCameraId(cameraId)
     }
 
-    private class ADVideoHandler(looper: Looper, private val config: ADVideoConfig) : Handler(looper) {
+    private inner class ADVideoHandler(looper: Looper, private val config: ADVideoConfig) : Handler(looper) {
 
         private var mCameraTexture: SurfaceTexture? = null
         private var mScreenTexture: SurfaceTexture? = null
         private var mInnerVideoFilter: BaseHardVideoFilter? = null
 
+        // 离屏
         private var mOffScreenWrapper: OffScreenGLWrapper? = null
         private var mScreenWrapper: ScreenGLWrapper? = null
         private var mMediaCodecWrapper: MediaCodecGLWrapper? = null
@@ -151,6 +164,7 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
         private val syncCamaraTexture = Any()
         private val syncFrameNum = Any()
         private val syncFilter = Any()
+        private val syncCameraTextureVerticesBuffer = Any()
 
         private lateinit var shapeVerticesBuffer: FloatBuffer
         private lateinit var mediaCodecTextureVerticesBuffer: FloatBuffer
@@ -166,8 +180,9 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
         private var directionFlag: Int = 0
         private var mScreenSize = Size(1, 1)
         private var mCurrentCamaraId = "0"
-        private var mFrameNum = 0
-        private var mDropNextFrame = false
+        private var frameNum = 0
+        private var dropNextFrame = false
+        private var hasNewFrame = false
 
         init {
             initBuffer()
@@ -177,7 +192,12 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
             super.handleMessage(msg)
             when(msg.what) {
                 WHAT_INIT -> {
-
+                    initOffScreenGLWrapper()
+                }
+                WHAT_UN_INIT -> {
+                    mInnerVideoFilter?.onDestroy()
+                    mInnerVideoFilter = null
+                    unInitOffScreenGLWrapper()
                 }
                 WHAT_SET_FILTER -> {
                     synchronized(syncFilter) {
@@ -187,6 +207,54 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
                             mInnerVideoFilter = filter
                             mInnerVideoFilter?.onInit(config.videoHeight, config.videoWidth)
                         }
+                    }
+                }
+                WHAT_START_PREVIEW -> {
+                    initScreenGLWrapper(msg.obj as SurfaceTexture)
+                    updateScreenWidth(msg.arg1, msg.arg2)
+                }
+                WHAT_STOP_PREVIEW -> {
+                    unInitScreenGLWrapper()
+                    if (msg.obj as Boolean) {
+                        mScreenTexture?.release()
+                        mScreenTexture = null
+                    }
+                }
+                WHAT_FRAME -> {
+                    // 绘制摄像头的画面
+                    makeCurrent(mOffScreenWrapper!!)
+                    synchronized(syncFrameNum) {
+                        synchronized(syncCamaraTexture) {
+                            mCameraTexture?.let {
+                                while (frameNum > 0) {
+                                    it.updateTexImage()
+                                    --frameNum
+                                    if (dropNextFrame){
+                                        dropNextFrame = false
+                                        hasNewFrame = false
+                                    } else {
+                                        hasNewFrame = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    mCameraTexture?.let { drawSample2DFrameBuffer(it) }
+                }
+                WHAT_DRAW -> {
+                    val time = msg.obj as Long
+                    val interval = time + loopDurationMs - SystemClock.uptimeMillis()
+                    synchronized(syncLooping) {
+                        if (isPreview || isStream) {
+                            if (interval > 0) {
+                                sendMessageDelayed(obtainMessage(WHAT_DRAW, SystemClock.uptimeMillis() + interval), interval)
+                            } else {
+                                sendMessage(obtainMessage(WHAT_DRAW, SystemClock.uptimeMillis() + loopDurationMs))
+                            }
+                        }
+                    }
+                    if (hasNewFrame) {
+
                     }
                 }
             }
@@ -243,11 +311,11 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
                 frameBufferTexture = fbt[0]
                 mOffScreenWrapper = offScreenGLWrapper
             } else {
-                throw IllegalStateException("offScreenGL has been initialized")
+                throw IllegalStateException("mOffScreenWrapper has been initialized")
             }
         }
 
-        private fun releaseOffScreenGLWrapper() {
+        private fun unInitOffScreenGLWrapper() {
             val offScreenGLWrapper = mOffScreenWrapper
             if (offScreenGLWrapper != null) {
                 makeCurrent(offScreenGLWrapper)
@@ -263,10 +331,92 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
                 EGL14.eglMakeCurrent(offScreenGLWrapper.eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
                 mOffScreenWrapper = null
             } else {
-                throw IllegalStateException("offScreenGL has not been initialized")
+                throw IllegalStateException("mOffScreenWrapper has not been initialized")
             }
         }
 
+        private fun initScreenGLWrapper(screenTexture: SurfaceTexture) {
+            if (mScreenWrapper == null) {
+                mScreenTexture = screenTexture
+                val screenGLWrapper = ScreenGLWrapper()
+                initScreenGL(screenGLWrapper, mOffScreenWrapper!!.eglContext, screenTexture)
+                makeCurrent(screenGLWrapper)
+                screenGLWrapper.drawProgram = createScreenProgram()
+                GLES20.glUseProgram(screenGLWrapper.drawProgram)
+                screenGLWrapper.drawTextureLoc = GLES20.glGetUniformLocation(screenGLWrapper.drawProgram, "uTexture")
+                screenGLWrapper.drawPositionLoc = GLES20.glGetAttribLocation(screenGLWrapper.drawProgram, "aPosition")
+                screenGLWrapper.drawTextureCoordLoc = GLES20.glGetAttribLocation(screenGLWrapper.drawProgram, "aTextureCoord")
+                mScreenWrapper = screenGLWrapper
+            } else {
+                throw IllegalStateException("mScreenWrapper has been initialized")
+            }
+        }
+
+        private fun unInitScreenGLWrapper() {
+            val screenGLWrapper = mScreenWrapper
+            if (screenGLWrapper != null) {
+                makeCurrent(screenGLWrapper)
+                GLES20.glDeleteProgram(screenGLWrapper.drawProgram)
+                EGL14.eglDestroySurface(screenGLWrapper.eglDisplay, screenGLWrapper.eglSurface)
+                EGL14.eglDestroyContext(screenGLWrapper.eglDisplay, screenGLWrapper.eglContext)
+                EGL14.eglTerminate(screenGLWrapper.eglDisplay)
+                EGL14.eglMakeCurrent(screenGLWrapper.eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+                mScreenTexture = null
+            } else {
+                throw IllegalStateException("mScreenWrapper has not been initialized")
+            }
+        }
+
+        private fun initMediaCodecGLWrapper(mediaCodecSurface: Surface) {
+            if (mMediaCodecWrapper == null) {
+                val mediaCodecGLWrapper = MediaCodecGLWrapper()
+                initMediaCodecGL(mediaCodecGLWrapper, mOffScreenWrapper!!.eglContext, mediaCodecSurface)
+                makeCurrent(mediaCodecGLWrapper)
+                GLES20.glEnable(GLES11Ext.GL_TEXTURE_EXTERNAL_OES)
+                mediaCodecGLWrapper.drawProgram = createMediaCodecProgram()
+                GLES20.glUseProgram(mediaCodecGLWrapper.drawProgram)
+                mediaCodecGLWrapper.drawTextureLoc = GLES20.glGetUniformLocation(mediaCodecGLWrapper.drawProgram, "uTexture")
+                mediaCodecGLWrapper.drawPositionLoc = GLES20.glGetAttribLocation(mediaCodecGLWrapper.drawProgram, "aPosition")
+                mediaCodecGLWrapper.drawTextureCoordLoc = GLES20.glGetAttribLocation(mediaCodecGLWrapper.drawProgram, "aTextureCoord")
+                mMediaCodecWrapper = mediaCodecGLWrapper
+            } else {
+                throw IllegalStateException("mMediaCodecWrapper has been initialized")
+            }
+        }
+
+        private fun unInitMediaCodecGLWrapper() {
+            val mediaCodecGLWrapper = mMediaCodecWrapper
+            if (mediaCodecGLWrapper != null) {
+                makeCurrent(mediaCodecGLWrapper)
+                GLES20.glDeleteProgram(mediaCodecGLWrapper.drawProgram)
+                EGL14.eglDestroySurface(mediaCodecGLWrapper.eglDisplay, mediaCodecGLWrapper.eglSurface)
+                EGL14.eglDestroyContext(mediaCodecGLWrapper.eglDisplay, mediaCodecGLWrapper.eglContext)
+                EGL14.eglTerminate(mediaCodecGLWrapper.eglDisplay)
+                EGL14.eglMakeCurrent(mediaCodecGLWrapper.eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+                mMediaCodecWrapper = null
+            } else {
+                throw IllegalStateException("mMediaCodecWrapper has not been initialized")
+            }
+        }
+
+        private fun drawSample2DFrameBuffer(cameraTexture: SurfaceTexture) {
+            if (isEnableMirror) {
+                screenTextureVerticesBuffer = adjustTextureFlip(isEnablePreviewMirror)
+                mediaCodecTextureVerticesBuffer = adjustTextureFlip(isEnableStreamMirror)
+            }
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sample2DFrameBuffer)
+            GLES20.glUseProgram(mOffScreenWrapper!!.camera2dProgram)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, ADVideoEngine.CAMERA_TEXTURE_ID)
+            GLES20.glUniform1i(mOffScreenWrapper!!.camera2dTextureLoc, 0)
+            synchronized(syncCameraTextureVerticesBuffer) {
+                enableVertex(mOffScreenWrapper!!.camera2dPositionLoc,
+                    mOffScreenWrapper!!.camera2dTextureCoordLoc,
+                    shapeVerticesBuffer, camera2dTextureVerticesBuffer)
+            }
+
+
+        }
 
         fun setCameraId(cameraId: String) {
             synchronized(syncCameraBuffer) {
@@ -280,8 +430,8 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
             synchronized(syncCamaraTexture) {
                 if (mCameraTexture != cameraTexture) {
                     mCameraTexture = cameraTexture
-                    mFrameNum = 0
-                    mDropNextFrame = false
+                    frameNum = 0
+                    dropNextFrame = false
                 }
             }
         }
@@ -292,7 +442,7 @@ internal class ADVideoCore(private val config: ADVideoConfig) {
 
         fun addFrameNum() {
             synchronized(syncFrameNum) {
-                ++mFrameNum
+                ++frameNum
                 removeMessages(WHAT_FRAME)
                 sendMessageAtFrontOfQueue(obtainMessage(WHAT_FRAME))
             }
