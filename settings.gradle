@@ -1,3 +1,4 @@
-include ':media'
+//include ':media'
+include ':ADLive'
 include ':app'
 rootProject.name = "AudioVideoTest"
