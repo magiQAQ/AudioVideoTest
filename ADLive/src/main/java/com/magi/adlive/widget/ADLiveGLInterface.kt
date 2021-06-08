@@ -41,7 +41,7 @@ interface ADLiveGLInterface {
     /**
      * 从OpenGL中截图,通过回调返回Bitmap
      */
-    fun takePhoto(screenShotCallback: ScreenShotCallback)
+    fun screenShot(screenShotCallback: ScreenShotCallback)
 
     /**
      * 给流设置滤镜
@@ -95,7 +95,7 @@ interface ADLiveGLInterface {
 
     fun unMuteVideo()
 
-    fun isVideoMuted()
+    fun isVideoMuted(): Boolean
 
     /**
      * @param force 渲染最后一帧。 这对于显示模式很有用，可以继续生成视频帧。 在其他模式下不推荐
