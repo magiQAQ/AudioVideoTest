@@ -11,8 +11,7 @@ abstract class BaseFilterRender: BaseRenderOffScreen(){
     var previewHeight = 0
         private set
 
-    @JvmField
-    protected var previousTexId = 0
+    private var previousTexId = 0
 
     override fun initGL(width: Int, height: Int, context: Context, previewWidth: Int, previewHeight: Int) {
         this.width = width
@@ -49,4 +48,5 @@ abstract class BaseFilterRender: BaseRenderOffScreen(){
 
     fun setPreviousTexId(texId: Int) { previousTexId = texId }
 
+    fun getPreviousTexId(): Int { return previousTexId }
 }

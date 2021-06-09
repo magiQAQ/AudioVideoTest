@@ -9,7 +9,7 @@ import com.magi.adlive.ScreenShotCallback
 import com.magi.adlive.gl.Filter
 import com.magi.adlive.gl.SurfaceManager
 import com.magi.adlive.util.ADLogUtil
-import com.magi.adlive.util.FpsLimiter
+import com.magi.adlive.util.ADFpsLimiter
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 
@@ -26,7 +26,7 @@ abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, Surfa
     protected val surfaceManager = SurfaceManager()
     protected val surfaceManagerEncoder = SurfaceManager()
 
-    protected val fpsLimiter = FpsLimiter()
+    protected val fpsLimiter = ADFpsLimiter()
     protected val semaphore = Semaphore(0)
     protected val filterQueue = LinkedBlockingQueue<Filter>()
     protected val sync = Any()
@@ -39,8 +39,7 @@ abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, Surfa
     protected var muteVideo = false
     protected var isStreamHorizontalFlip = false
     protected var isStreamVerticalFlip = false
-    @JvmField
-    protected var forceRender = false
+    protected var mForceRender = false
 
     constructor(context: Context):super(context)
 
@@ -48,7 +47,7 @@ abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, Surfa
 
 
     override fun setForceRender(force: Boolean) {
-        this.forceRender = force
+        this.mForceRender = force
     }
 
     override fun setIsStreamHorizontalFlip(flip: Boolean) {
@@ -136,8 +135,6 @@ abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, Surfa
             frameAvailable = true
         }
     }
-
-    override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {}
 
     abstract override fun getSurface(): Surface
 

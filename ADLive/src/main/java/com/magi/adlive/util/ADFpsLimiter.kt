@@ -1,6 +1,6 @@
 package com.magi.adlive.util
 
-class FpsLimiter {
+class ADFpsLimiter {
 
     private var lastFrameTime = System.currentTimeMillis()
     private var duration = 1000 / 30
