@@ -8,7 +8,6 @@ import com.magi.adlive.gl.filter.NoFilterRender
 
 class ManagerRender(val numFilters: Int) {
 
-
     private val cameraRender = CameraRender()
     private val baseFilterRenders = ArrayList<BaseFilterRender>(numFilters)
     private val screenRender = ScreenRender()
@@ -17,7 +16,7 @@ class ManagerRender(val numFilters: Int) {
     private var height = 0
     private var previewWidth = 0
     private var previewHeight = 0
-    private var context: Context? = null
+    private lateinit var context: Context
 
     init {
         for (i in 0 until numFilters) baseFilterRenders.add(NoFilterRender())
@@ -97,5 +96,15 @@ class ManagerRender(val numFilters: Int) {
         baseFilterRenders.forEach {
             it.setPreviewSize(previewWidth, previewHeight)
         }
+    }
+
+    fun setFilter(position: Int, baseFilterRender: BaseFilterRender) {
+        val id = baseFilterRenders[position].getPreviousTexId()
+        val renderHandler = baseFilterRenders[position].getRenderHandle()
+        baseFilterRenders[position].release()
+        baseFilterRenders[position] = baseFilterRender
+        baseFilterRenders[position].setPreviousTexId(id)
+        baseFilterRenders[position].initGL(width, height, context, previewWidth, previewHeight)
+        baseFilterRenders[position].setRenderHandle(renderHandler)
     }
 }

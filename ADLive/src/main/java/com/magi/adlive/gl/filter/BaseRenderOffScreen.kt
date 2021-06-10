@@ -20,7 +20,7 @@ abstract class BaseRenderOffScreen {
     protected lateinit var squareVertex: FloatBuffer
     protected val MVPMatrix = FloatArray(16)
     protected val STMatrix = FloatArray(16)
-    protected val renderHandler = RenderHandler()
+    protected var renderHandler = RenderHandler()
     protected var width = 0
     protected var height = 0
 

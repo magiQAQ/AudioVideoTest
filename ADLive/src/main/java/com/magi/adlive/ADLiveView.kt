@@ -15,13 +15,13 @@ class ADLiveView: ADLiveGLViewBase {
 
     private lateinit var managerRender: ManagerRender
     private var loadAA = false
-    private var AAEnabled = false
+    private var aaEnabled = false
     private var keepAspectRatio = false
     private var aspectRatioMode: AspectRatioMode = AspectRatioMode.Adjust
     private var screenSurfaceTexture: SurfaceTexture? = null
     private var screenSurface: Surface? = null
-    //todo 信号量
-    private var needPreview: Semaphore = Semaphore(1)
+
+    private var needPreview: Semaphore = Semaphore(-1)
 
 
     constructor(context: Context): super(context)
@@ -54,7 +54,7 @@ class ADLiveView: ADLiveGLViewBase {
     }
 
     override fun enableAA(enable: Boolean) {
-        this.AAEnabled = enable
+        this.aaEnabled = enable
         loadAA = true
     }
 
@@ -78,15 +78,10 @@ class ADLiveView: ADLiveGLViewBase {
         return managerRender.isAaEnabled()
     }
 
-    override fun run() {
-//        if (!needPreview) return
-        surfaceManager.release()
-        surfaceManager.eglSetup(2, 2, screenSurface!! ,null)
-    }
-
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         screenSurfaceTexture = surface
-        screenSurface = Surface(surface)
+        screenSurfaceTexture?.setDefaultBufferSize(width, height)
+        needPreview.release()
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
@@ -96,8 +91,68 @@ class ADLiveView: ADLiveGLViewBase {
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        screenSurface?.release()
         return true
     }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+
+    override fun run() {
+        needPreview.acquireUninterruptibly()
+        surfaceManager.release()
+        surfaceManager.eglSetup(2, 2, screenSurface!! ,null)
+        surfaceManager.makeCurrent()
+        managerRender.initGL(context, encoderWidth, encoderHeight, previewWidth, previewHeight)
+        managerRender.getSurfaceTexture().setOnFrameAvailableListener(this)
+        surfaceManagerPhoto.release()
+        surfaceManagerPhoto.eglSetup(encoderWidth, encoderHeight, null, surfaceManager.getEglContext())
+        semaphore.release()
+        try {
+            while (running) {
+                if (frameAvailable || mForceRender) {
+                    frameAvailable = false
+                    surfaceManager.makeCurrent()
+                    managerRender.updateFrame()
+                    managerRender.drawOffScreen()
+                    managerRender.drawScreen(previewWidth, previewHeight, keepAspectRatio, aspectRatioMode.id, 0,
+                        isPreview = true, flipStreamVertical = false, flipStreamHorizontal = false
+                    )
+                    surfaceManager.swapBuffer()
+                }
+
+                synchronized(sync) {
+                    if (surfaceManagerEncoder.isReady() && !fpsLimiter.limitFPS()) {
+                        val w = if (muteVideo) 0 else encoderWidth
+                        val h = if (muteVideo) 0 else encoderHeight
+                        surfaceManagerEncoder.makeCurrent()
+                        managerRender.drawScreen(w, h, false, aspectRatioMode.id,
+                        streamRotation, false, isStreamVerticalFlip, isStreamHorizontalFlip)
+                        surfaceManagerEncoder.swapBuffer()
+                    }
+                    if (screenShotCallback != null && surfaceManagerPhoto.isReady()) {
+                        surfaceManagerPhoto.makeCurrent()
+                        managerRender.drawScreen(encoderWidth, encoderHeight, false, aspectRatioMode.id,
+                        streamRotation, false, isStreamVerticalFlip, isStreamHorizontalFlip)
+                        screenShotCallback?.onScreenShot(getBitmap(encoderWidth, encoderHeight))
+                        screenShotCallback = null
+                        surfaceManagerPhoto.swapBuffer()
+                    }
+                }
+                if (!filterQueue.isEmpty()) {
+                    val filter = filterQueue.take()
+                    managerRender.setFilter(filter.position, filter.baseFilterRender)
+                } else if (loadAA) {
+                    managerRender.enableAA(aaEnabled)
+                    loadAA = false
+                }
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            managerRender.release()
+            surfaceManager.release()
+            surfaceManagerPhoto.release()
+            surfaceManagerEncoder.release()
+        }
+    }
 }

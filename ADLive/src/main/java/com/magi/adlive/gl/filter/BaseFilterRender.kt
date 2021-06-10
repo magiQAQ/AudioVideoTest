@@ -2,6 +2,7 @@ package com.magi.adlive.gl.filter
 
 import android.content.Context
 import android.opengl.GLES20
+import com.magi.adlive.gl.RenderHandler
 import com.magi.adlive.util.checkGLError
 
 abstract class BaseFilterRender: BaseRenderOffScreen(){
@@ -49,4 +50,12 @@ abstract class BaseFilterRender: BaseRenderOffScreen(){
     fun setPreviousTexId(texId: Int) { previousTexId = texId }
 
     fun getPreviousTexId(): Int { return previousTexId }
+
+    fun getRenderHandle(): RenderHandler {
+        return renderHandler
+    }
+
+    fun setRenderHandle(renderHandler: RenderHandler) {
+        this.renderHandler = renderHandler
+    }
 }
