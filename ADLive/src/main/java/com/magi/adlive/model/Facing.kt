@@ -2,5 +2,10 @@ package com.magi.adlive.model
 
 enum class Facing {
     BACK,
-    FRONT
+    FRONT;
+
+    override fun toString(): String{
+        return name
+    }
+
 }
