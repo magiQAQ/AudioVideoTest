@@ -95,7 +95,7 @@ abstract class BaseEncoder: EncodeCallback {
         oldTimeStamp = 0L
     }
 
-    protected abstract fun chooseEncoder(mime: String): MediaCodecInfo
+    protected abstract fun chooseEncoder(mime: String): MediaCodecInfo?
 
     @Throws(InterruptedException::class)
     protected abstract fun getInputFrame(): Frame?

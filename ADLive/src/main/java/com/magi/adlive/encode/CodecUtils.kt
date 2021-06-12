@@ -28,7 +28,18 @@ fun getAllHardwareEncoders(mime: String): MutableList<MediaCodecInfo> {
             hardwareCodes.add(mediaCodecInfo)
         }
     }
-    return mediaCodecInfoList
+    return hardwareCodes
+}
+
+fun getAllSoftwareEncoders(mime: String): MutableList<MediaCodecInfo> {
+    val mediaCodecInfoList = getAllCodecs()
+    val softwareCodes = arrayListOf<MediaCodecInfo>()
+    for (mediaCodecInfo in mediaCodecInfoList) {
+        if (isSoftwareOnly(mediaCodecInfo)) {
+            softwareCodes.add(mediaCodecInfo)
+        }
+    }
+    return softwareCodes
 }
 
 fun getAllEncoder(mime: String): MutableList<MediaCodecInfo> {

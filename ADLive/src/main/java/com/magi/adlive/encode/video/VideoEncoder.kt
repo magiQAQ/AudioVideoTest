@@ -1,9 +1,12 @@
 package com.magi.adlive.encode.video
 
+import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.util.Log
 import android.view.Surface
 import com.magi.adlive.encode.BaseEncoder
 import com.magi.adlive.encode.H264_MIME
+import com.magi.adlive.encode.getAllHardwareEncoders
 import com.magi.adlive.util.ADFpsLimiter
 import com.magi.adlive.util.ADLogUtil
 
@@ -22,7 +25,7 @@ class VideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), GetCa
 
     private var fpsLimiter = ADFpsLimiter()
     private var type = H264_MIME
-    private var formatVideoEncoder = FormatVideoEncoder.YUV420Dynamical
+    private var formatVideoEncoder: FormatVideoEncoder? = FormatVideoEncoder.YUV420Dynamical
     private var avcProfile = -1
     private var avcProfileLevel = -1
 
@@ -45,7 +48,23 @@ class VideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), GetCa
         isBufferMode = true
         val encoder = chooseEncoder(type)
         try {
-
+            if (encoder != null) {
+                ADLogUtil.logD(TAG, "Encoder selected ${encoder.name}")
+                codec = MediaCodec.createByCodecName(encoder.name)
+                if (this.formatVideoEncoder == FormatVideoEncoder.YUV420Dynamical) {
+                    this.formatVideoEncoder = chooseColorDynamically(encoder)
+                    if (this.formatVideoEncoder == null) {
+                        ADLogUtil.logE(TAG, "YUV420 dynamical choose failed")
+                        return false
+                    }
+                }
+            } else {
+                ADLogUtil.logE(TAG, "Valid encoder not found")
+                return false
+            }
+            // TODO: 2021/6/13
+            
+            
             return true
         } catch (e: Exception) {
             ADLogUtil.logE(TAG, "create VideoEncoder failed", e)
@@ -54,7 +73,50 @@ class VideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), GetCa
         }
     }
 
-    override fun chooseEncoder(mime: String): MediaCodecInfo {
-        TODO("Not yet implemented")
+    override fun chooseEncoder(mime: String): MediaCodecInfo? {
+        val mediaCodecInfoList = getAllHardwareEncoders(mime)
+        ADLogUtil.logD(TAG, "Found encoder $mime count ${mediaCodecInfoList.size}")
+        val cbrPriority = ArrayList<MediaCodecInfo>()
+        for (mci in mediaCodecInfoList) {
+            if (isCBRModeSupported(mci)) {
+                cbrPriority.add(mci)
+            }
+        }
+        mediaCodecInfoList.removeAll(cbrPriority)
+        mediaCodecInfoList.addAll(cbrPriority)
+        for (mci in mediaCodecInfoList) {
+            ADLogUtil.logD(TAG, "Encoder ${mci.name}")
+            val codecCapabilities = mci.getCapabilitiesForType(mime)
+            for (format in codecCapabilities.colorFormats) {
+                ADLogUtil.logD(TAG, "format support: $format")
+                if (formatVideoEncoder == FormatVideoEncoder.SURFACE) {
+                    if (format == FormatVideoEncoder.SURFACE.getFormatCodec()) return mci
+                } else {
+                    //check if encoder support any yuv420 color
+                    if (format == FormatVideoEncoder.YUV420PLANAR.getFormatCodec()
+                        || format == FormatVideoEncoder.YUV420SEMIPLANAR.getFormatCodec()) {
+                        return mci
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun isCBRModeSupported(mediaCodecInfo: MediaCodecInfo): Boolean {
+        val codecCapabilities = mediaCodecInfo.getCapabilitiesForType(type)
+        val encoderCapabilities = codecCapabilities.encoderCapabilities
+        return encoderCapabilities.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+    }
+
+    private fun chooseColorDynamically(mediaCodecInfo: MediaCodecInfo): FormatVideoEncoder? {
+        for (format in mediaCodecInfo.getCapabilitiesForType(type).colorFormats) {
+            if (format == FormatVideoEncoder.YUV420PLANAR.getFormatCodec()) {
+                return FormatVideoEncoder.YUV420PLANAR
+            } else if (format == FormatVideoEncoder.YUV420SEMIPLANAR.getFormatCodec()) {
+                return FormatVideoEncoder.YUV420SEMIPLANAR
+            }
+        }
+        return null
     }
 }
