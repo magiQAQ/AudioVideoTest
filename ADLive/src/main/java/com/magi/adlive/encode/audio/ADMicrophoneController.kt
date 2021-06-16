@@ -29,9 +29,8 @@ class ADMicrophoneController(private val getMicrophoneData: GetMicrophoneData) {
 
     private val semaphore = Semaphore(0)
 
-    fun createMicrophone(audioSource: Int = MediaRecorder.AudioSource.DEFAULT, sampleRate: Int = 44100,
-    channelCount: Int = 2, echoCancel: Boolean = false, autoGain: Boolean = false,
-    noiseSuppress: Boolean = false): Boolean {
+    fun createMicrophone(audioSource: Int, sampleRate: Int, channelCount: Int, echoCancel: Boolean, autoGain: Boolean,
+    noiseSuppress: Boolean): Boolean {
         semaphore.acquireUninterruptibly()
         this.sampleRate = sampleRate
         this.channel = if (channelCount == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
@@ -103,5 +102,9 @@ class ADMicrophoneController(private val getMicrophoneData: GetMicrophoneData) {
         val size = audioRecord?.read(pcmBuffer, pcmBuffer.remaining())?:0
         if (size < 0) return null
         return Frame(if (isMuted) pcmBufferMuted else pcmBuffer.array(), if (isMuted) 0 else pcmBuffer.arrayOffset(), size)
+    }
+
+    fun getMaxInputSize(): Int {
+        return BUFFER_SIZE
     }
 }

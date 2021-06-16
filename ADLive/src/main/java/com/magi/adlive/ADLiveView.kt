@@ -81,6 +81,7 @@ class ADLiveView: ADLiveGLViewBase {
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         screenSurfaceTexture = surface
         screenSurfaceTexture?.setDefaultBufferSize(width, height)
+        screenSurface = Surface(screenSurfaceTexture)
         needPreview.release()
     }
 

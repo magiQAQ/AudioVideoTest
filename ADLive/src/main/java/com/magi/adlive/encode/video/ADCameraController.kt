@@ -28,7 +28,8 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
     var isRunning = false
         private set
     private var currentCameraId = "0"
-    private var facing = Facing.BACK
+    var facing = Facing.BACK
+        private set
     private var requestBuilder: CaptureRequest.Builder? = null
     private var fingerSpacing = 0
     private var zoomLevel = 0f
@@ -106,7 +107,7 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
         return requestBuilder?.build()
     }
 
-    private fun setCameraCallback(callback: ADCameraCallback) {
+    fun setCameraCallback(callback: ADCameraCallback) {
         cameraCallback = callback
     }
 
@@ -257,6 +258,15 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
             CameraCharacteristics.LENS_FACING_BACK -> Facing.BACK
             CameraCharacteristics.LENS_FACING_FRONT -> Facing.FRONT
             else -> Facing.BACK
+        }
+    }
+
+    fun openCameraFacing(facing: Facing) {
+        val id = getCameraIdFromFacing(facing)
+        if (id.isNotEmpty()) {
+            openCameraId(id)
+        } else {
+            cameraCallback?.onCameraError("Camera not supported")
         }
     }
 
