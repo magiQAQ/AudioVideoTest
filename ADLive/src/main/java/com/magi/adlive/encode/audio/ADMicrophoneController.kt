@@ -27,7 +27,7 @@ class ADMicrophoneController(private val getMicrophoneData: GetMicrophoneData) {
     private lateinit var audioPostProcessEffect: AudioPostProcessEffect
     private lateinit var handlerThread: HandlerThread
 
-    private val semaphore = Semaphore(0)
+    private val semaphore = Semaphore(1)
 
     fun createMicrophone(audioSource: Int, sampleRate: Int, channelCount: Int, echoCancel: Boolean, autoGain: Boolean,
     noiseSuppress: Boolean): Boolean {

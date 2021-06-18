@@ -10,7 +10,7 @@ class AudioPostProcessEffect(private val microphoneId: Int) {
 
     private val TAG = "AudioPostProcessEffect"
 
-    private var semaphore = Semaphore(0)
+    private var semaphore = Semaphore(1)
 
     // 回声消除器
     private var acousticEchoCanceler: AcousticEchoCanceler? = null
