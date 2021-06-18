@@ -47,6 +47,8 @@ class ScreenRender {
     private var streamHeight = 0
     private var isPortrait = false
 
+    private val TAG = "ScreenRender"
+
     init {
         squareVertex = ByteBuffer.allocateDirect(squareVertexData.size * FLOAT_SIZE_BYTES)
             .order(ByteOrder.nativeOrder())
@@ -80,6 +82,7 @@ class ScreenRender {
 
         processMatrix(rotation, width, height, isPreview, isPortrait, flipStreamHorizontal,
             flipStreamVertical, mode, mvpMatrix)
+//        ADLogUtil.logD(TAG, "$width $height $streamWidth $streamHeight $mode")
         calculateViewPort(keepAspectRatio, mode, width, height, streamWidth, streamHeight)
 
         GLES20.glClearColor(0f, 0f, 0f, 1f)
@@ -90,7 +93,7 @@ class ScreenRender {
         squareVertex.position(SQUARE_VERTEX_DATA_POS_OFFSET)
         GLES20.glVertexAttribPointer(
             aPositionHandle, 3, GLES20.GL_FLOAT, false,
-            BaseRenderOffScreen.SQUARE_VERTEX_DATA_STRIDE_BYTES, squareVertex
+            SQUARE_VERTEX_DATA_STRIDE_BYTES, squareVertex
         )
         GLES20.glEnableVertexAttribArray(aPositionHandle)
 

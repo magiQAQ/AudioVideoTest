@@ -1,11 +1,12 @@
 package me.magi.audioVideoTest
 
 import android.app.Application
-import me.magi.media.utils.init
+import com.magi.adlive.ADLiveBase
 
 class MyApplication: Application() {
     override fun onCreate() {
         super.onCreate()
-        init(this)
+//        init(this)
+        ADLiveBase.init(this)
     }
 }

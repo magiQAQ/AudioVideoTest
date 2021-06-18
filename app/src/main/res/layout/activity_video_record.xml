@@ -6,8 +6,8 @@
     android:layout_height="match_parent"
     tools:context=".VideoRecordActivity">
 
-    <me.magi.media.widget.ADGLTextureView
-        android:id="@+id/textureView"
+    <com.magi.adlive.ADLiveView
+        android:id="@+id/liveView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -21,7 +21,7 @@
         android:layout_height="wrap_content"
         android:text="开始预览"
         android:onClick="startPreview"
-        app:layout_constraintBottom_toTopOf="@id/btn_start_record"
+        app:layout_constraintBottom_toTopOf="@id/btn_start_stream"
         app:layout_constraintEnd_toStartOf="@id/btn_stop_preview"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -32,7 +32,7 @@
         android:layout_height="wrap_content"
         android:text="停止预览"
         android:onClick="stopPreview"
-        app:layout_constraintBottom_toTopOf="@id/btn_stop_record"
+        app:layout_constraintBottom_toTopOf="@id/btn_stop_stream"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/btn_start_preview"
         app:layout_constraintTop_toTopOf="parent" />
@@ -45,7 +45,7 @@
         android:onClick="openCloseFlash"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/btn_set_auto_focus"
-        app:layout_constraintBottom_toTopOf="@id/btn_start_record"
+        app:layout_constraintBottom_toTopOf="@id/btn_start_stream"
         app:layout_constraintTop_toBottomOf="@id/btn_start_preview" />
 
     <Button
@@ -55,28 +55,28 @@
         android:text="关闭自动对焦"
         android:onClick="openCloseAutoFocus"
         app:layout_constraintTop_toBottomOf="@id/btn_stop_preview"
-        app:layout_constraintBottom_toTopOf="@id/btn_stop_record"
+        app:layout_constraintBottom_toTopOf="@id/btn_stop_stream"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/btn_open_close_flash" />
 
     <Button
-        android:id="@+id/btn_start_record"
+        android:id="@+id/btn_start_stream"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="开始录制"
+        android:text="开始推流"
         app:layout_constraintBottom_toTopOf="@id/btn_start_play"
-        app:layout_constraintEnd_toStartOf="@id/btn_stop_record"
+        app:layout_constraintEnd_toStartOf="@id/btn_stop_stream"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/btn_start_preview" />
 
     <Button
-        android:id="@+id/btn_stop_record"
+        android:id="@+id/btn_stop_stream"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="停止录制"
+        android:text="停止推流"
         app:layout_constraintBottom_toTopOf="@id/btn_stop_play"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/btn_start_record"
+        app:layout_constraintStart_toEndOf="@id/btn_start_stream"
         app:layout_constraintTop_toBottomOf="@id/btn_stop_preview" />
 
     <Button
@@ -84,7 +84,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="开始播放"
-        app:layout_constraintTop_toBottomOf="@id/btn_start_record"
+        app:layout_constraintTop_toBottomOf="@id/btn_start_stream"
         app:layout_constraintEnd_toStartOf="@id/btn_stop_play"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
@@ -95,7 +95,7 @@
         android:layout_height="wrap_content"
         android:text="停止播放"
         app:layout_constraintStart_toEndOf="@id/btn_start_play"
-        app:layout_constraintTop_toBottomOf="@id/btn_stop_record"
+        app:layout_constraintTop_toBottomOf="@id/btn_stop_stream"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
 

@@ -13,7 +13,7 @@ import com.magi.adlive.util.ADFpsLimiter
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.Semaphore
 
-abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, SurfaceTexture.OnFrameAvailableListener, TextureView.SurfaceTextureListener{
+abstract class ADLiveGLViewBase: TextureView, ADLiveGLInterface, Runnable, SurfaceTexture.OnFrameAvailableListener {
 
     private val TAG = "ADLiveGLViewBase"
 

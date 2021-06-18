@@ -13,6 +13,7 @@ fun calculateViewPort(
     val pair = getViewport(
         keepAspectRatio, mode, previewWidth, previewHeight, streamWidth, streamHeight
     )
+//    ADLogUtil.logD("calculateViewPort", "${pair.first.x}, ${pair.first.y}, ${pair.second.x}, ${pair.second.y}")
     GLES20.glViewport(pair.first.x, pair.first.y, pair.second.x, pair.second.y)
 }
 
@@ -32,8 +33,7 @@ fun getViewport(
         var yf = previewHeight
         if ((streamAspectRatio > 1f && previewAspectRatio > 1f && streamAspectRatio > previewAspectRatio)
             || (streamAspectRatio < 1f && previewAspectRatio < 1f && streamAspectRatio > previewAspectRatio)
-            || (streamAspectRatio > 1f && previewAspectRatio < 1f)
-        ) {
+            || (streamAspectRatio > 1f && previewAspectRatio < 1f)) {
             if (mode == AspectRatioMode.Adjust.id || mode == AspectRatioMode.AdjustRotate.id) {
                 yf = streamHeight * previewWidth / streamWidth
                 yo = (yf - previewHeight) / -2
@@ -43,8 +43,7 @@ fun getViewport(
             }
         } else if ((streamAspectRatio > 1f && previewAspectRatio > 1f && streamAspectRatio < previewAspectRatio)
             || (streamAspectRatio < 1f && previewAspectRatio < 1f && streamAspectRatio < previewAspectRatio)
-            || (streamAspectRatio < 1f && previewAspectRatio > 1f)
-        ) {
+            || (streamAspectRatio < 1f && previewAspectRatio > 1f)) {
             if (mode == AspectRatioMode.Adjust.id || mode == AspectRatioMode.AdjustRotate.id) {
                 xf = streamWidth * previewHeight / streamHeight
                 xo = (xf - previewWidth) / -2

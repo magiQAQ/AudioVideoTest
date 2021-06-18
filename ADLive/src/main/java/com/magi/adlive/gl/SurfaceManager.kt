@@ -26,7 +26,7 @@ class SurfaceManager {
 
     fun swapBuffer() {
         if (!EGL14.eglSwapBuffers(eglDisplay, eglSurface)) {
-            Log.e(TAG, "egl swap buffer failed")
+            ADLogUtil.logE(TAG, "egl swap buffer failed")
         }
     }
 

@@ -10,7 +10,6 @@ import com.magi.adlive.librtmp.amf.v0.AmfObject
 import com.magi.adlive.librtmp.amf.v0.AmfString
 import com.magi.adlive.librtmp.flv.video.ProfileIop
 import com.magi.adlive.librtmp.rtmp.message.*
-import com.pedro.rtmp.rtmp.message.*
 import com.magi.adlive.librtmp.rtmp.message.command.Command
 import com.magi.adlive.librtmp.rtmp.message.control.Type
 import com.magi.adlive.librtmp.rtmp.message.control.UserControl

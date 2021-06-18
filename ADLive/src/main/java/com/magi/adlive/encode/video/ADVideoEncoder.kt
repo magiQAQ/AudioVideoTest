@@ -26,7 +26,8 @@ class ADVideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), Get
     var fps = 30
     var bitrate = 3000 * 1024
         private set
-    private var rotation = 90
+    var rotation = 90
+        private set
     private var iFrameInterval = 2
     var type = H264_MIME
 
@@ -57,14 +58,14 @@ class ADVideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), Get
             if (encoderInfo != null) {
                 ADLogUtil.logD(TAG, "Encoder selected ${encoderInfo.name}")
                 codec = MediaCodec.createByCodecName(encoderInfo.name)
-                if (this.formatVideoEncoder == FormatVideoEncoder.YUV420Dynamical) {
-                    val encoder = chooseColorDynamically(encoderInfo)
-                    if (encoder == null) {
-                        ADLogUtil.logE(TAG, "YUV420 dynamical choose failed")
-                        return false
-                    }
-                    this.formatVideoEncoder = encoder
-                }
+//                if (this.formatVideoEncoder == FormatVideoEncoder.YUV420Dynamical) {
+//                    val encoder = chooseColorDynamically(encoderInfo)
+//                    if (encoder == null) {
+//                        ADLogUtil.logE(TAG, "YUV420 dynamical choose failed")
+//                        return false
+//                    }
+//                    this.formatVideoEncoder = encoder
+//                }
             } else {
                 ADLogUtil.logE(TAG, "Valid encoder not found")
                 return false

@@ -4,24 +4,28 @@ import android.content.Context
 import android.graphics.SurfaceTexture
 import android.util.AttributeSet
 import android.view.Surface
+import android.view.TextureView
 import com.magi.adlive.gl.Filter
 import com.magi.adlive.gl.render.ManagerRender
 import com.magi.adlive.gl.filter.BaseFilterRender
 import com.magi.adlive.model.AspectRatioMode
+import com.magi.adlive.util.ADLogUtil
 import com.magi.adlive.widget.ADLiveGLViewBase
 import java.util.concurrent.Semaphore
 
-class ADLiveView: ADLiveGLViewBase {
+class ADLiveView: ADLiveGLViewBase, TextureView.SurfaceTextureListener {
 
     private lateinit var managerRender: ManagerRender
     private var loadAA = false
     private var aaEnabled = false
-    private var keepAspectRatio = false
-    private var aspectRatioMode: AspectRatioMode = AspectRatioMode.Adjust
+    private var keepAspectRatio = true
+    private var aspectRatioMode: AspectRatioMode = AspectRatioMode.FillRotate
     private var screenSurfaceTexture: SurfaceTexture? = null
     private var screenSurface: Surface? = null
 
-    private var needPreview: Semaphore = Semaphore(-1)
+    private var needPreview: Semaphore = Semaphore(0)
+
+    private val TAG = "ADLiveView"
 
 
     constructor(context: Context): super(context)
@@ -30,6 +34,7 @@ class ADLiveView: ADLiveGLViewBase {
 
     init {
         surfaceTextureListener = this
+        keepScreenOn = true
     }
 
     override fun init() {
@@ -79,6 +84,9 @@ class ADLiveView: ADLiveGLViewBase {
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+        ADLogUtil.logD(TAG, "screenSurfaceTexture valid")
+        this.previewWidth = width
+        this.previewHeight = height
         screenSurfaceTexture = surface
         screenSurfaceTexture?.setDefaultBufferSize(width, height)
         screenSurface = Surface(screenSurfaceTexture)
@@ -92,6 +100,7 @@ class ADLiveView: ADLiveGLViewBase {
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        screenSurfaceTexture?.release()
         screenSurface?.release()
         return true
     }
@@ -99,7 +108,9 @@ class ADLiveView: ADLiveGLViewBase {
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
 
     override fun run() {
+        ADLogUtil.logD(TAG, "glThread waiting")
         needPreview.acquireUninterruptibly()
+        ADLogUtil.logD(TAG, "glThread continue")
         surfaceManager.release()
         surfaceManager.eglSetup(2, 2, screenSurface!! ,null)
         surfaceManager.makeCurrent()
@@ -150,6 +161,7 @@ class ADLiveView: ADLiveGLViewBase {
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         } finally {
+            needPreview.release()
             managerRender.release()
             surfaceManager.release()
             surfaceManagerPhoto.release()

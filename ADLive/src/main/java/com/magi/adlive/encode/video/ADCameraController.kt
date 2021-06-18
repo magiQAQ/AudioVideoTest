@@ -36,7 +36,6 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
     private var flashEnable = false
     private var autoFocusEnable = true
     private var fps = 30
-    private var semaphore = Semaphore(0)
     private var cameraCallback: ADCameraCallback? = null
 
     fun getCameraResolutions(facing: Facing): Array<Size> {
@@ -74,7 +73,9 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
                     cameraCaptureSession = session
                     try {
                         val captureRequest = createCaptureRequest(listSurfaces)
-                        captureRequest?.let { session.setRepeatingRequest(it, null, cameraHandler) }
+                        captureRequest?.let {
+                            session.setRepeatingRequest(it, null, null)
+                        }
                     } catch (e : CameraAccessException) {
                         ADLogUtil.logE(TAG, "Camera Error", e)
                     } catch (e: IllegalStateException) {
@@ -101,8 +102,18 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
     private fun createCaptureRequest(surfaces: List<Surface>): CaptureRequest? {
         requestBuilder = cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)?:return null
         for (surface in surfaces) {
-            requestBuilder!!.addTarget(surface)
+            requestBuilder?.addTarget(surface)
         }
+        // 自动聚焦
+        requestBuilder?.set(
+            CaptureRequest.CONTROL_AF_MODE,
+            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
+        )
+        // 自动曝光，但是不自动开启闪光灯
+        requestBuilder?.set(
+            CaptureRequest.CONTROL_AE_MODE,
+            CaptureRequest.CONTROL_AE_MODE_ON
+        )
         adaptFpsRange()
         return requestBuilder?.build()
     }
@@ -149,7 +160,6 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
             handlerThread.start()
             cameraHandler = Handler(handlerThread.looper)
             try {
-                semaphore.acquireUninterruptibly()
                 cameraManager.openCamera(cameraId, this, cameraHandler)
                 isRunning = true
                 facing = getCameraFacingFromId(cameraId)
@@ -166,7 +176,7 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
         }
     }
 
-    private fun switchCamera() {
+    fun switchCamera() {
         try {
             var newCameraId = if (cameraDevice == null || facing == Facing.FRONT) {
                 getCameraIdFromFacing(Facing.BACK)
@@ -214,24 +224,22 @@ internal class ADCameraController(context: Context) : CameraDevice.StateCallback
         }
         isPrepared = false
         isRunning = false
+        ADLogUtil.logE(TAG, "camera closed")
     }
 
     override fun onOpened(camera: CameraDevice) {
         cameraDevice = camera
         startPreview(camera)
-        semaphore.release()
         ADLogUtil.logD(TAG,"Camera Opened")
     }
 
     override fun onDisconnected(camera: CameraDevice) {
         camera.close()
-        semaphore.release()
         ADLogUtil.logD(TAG, "Camera disconnected")
     }
 
     override fun onError(camera: CameraDevice, error: Int) {
         camera.close()
-        semaphore.release()
         cameraCallback?.onCameraError("Open camera failed")
         ADLogUtil.logE(TAG, "Camera open failed: $error")
     }
