@@ -230,6 +230,7 @@ class ADVideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), Get
         }
     }
 
+    // 检查视频编码器中是否有sps信息和pps信息
     private fun decodeSpsPpsFromBuffer(outputBuffer: ByteBuffer, length: Int): Pair<ByteBuffer, ByteBuffer>? {
         val csd = ByteArray(length)
         outputBuffer.get(csd, 0 , length)
@@ -248,6 +249,7 @@ class ADVideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), Get
             }
             i++
         }
+        // sps信息和pps信息一定是一起有的
         if (spsIndex != -1 && ppsIndex != -1) {
             val sps = ByteArray(ppsIndex)
             System.arraycopy(csd, spsIndex, sps, 0, ppsIndex)

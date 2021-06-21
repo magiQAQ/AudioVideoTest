@@ -142,19 +142,19 @@ abstract class ADRecorderBase: GetAacData, GetVideoData, GetMicrophoneData {
     private fun startEncoders() {
         videoEncoder.start()
         audioEncoder.start()
-        prepareGLView()
         microphoneController.start()
+        prepareGLView()
         isPreview = true
     }
 
     private fun stopEncoders() {
-        videoEncoder.start()
-        audioEncoder.start()
+        videoEncoder.stop()
+        audioEncoder.stop()
     }
 
     private fun prepareGLView() {
         glInterface.setFps(videoEncoder.fps)
-        if (videoEncoder.rotation in arrayOf(90, 270)) {
+        if (videoEncoder.rotation == 90 || videoEncoder.rotation == 270) {
             glInterface.setEncoderSize(videoEncoder.height, videoEncoder.width)
         } else {
             glInterface.setEncoderSize(videoEncoder.width, videoEncoder.height)

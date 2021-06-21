@@ -136,7 +136,7 @@ abstract class BaseEncoder: EncodeCallback {
     }
 
     override fun outputAvailable(mediaCodec: MediaCodec, outBufferIndex: Int, bufferInfo: MediaCodec.BufferInfo) {
-        mediaCodec.getInputBuffer(outBufferIndex)?.let {
+        mediaCodec.getOutputBuffer(outBufferIndex)?.let {
             processOutput(it, mediaCodec, outBufferIndex, bufferInfo)
         }
     }

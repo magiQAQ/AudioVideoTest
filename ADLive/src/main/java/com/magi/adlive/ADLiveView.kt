@@ -19,7 +19,7 @@ class ADLiveView: ADLiveGLViewBase, TextureView.SurfaceTextureListener {
     private var loadAA = false
     private var aaEnabled = false
     private var keepAspectRatio = true
-    private var aspectRatioMode: AspectRatioMode = AspectRatioMode.FillRotate
+    private var aspectRatioMode: AspectRatioMode = AspectRatioMode.Adjust
     private var screenSurfaceTexture: SurfaceTexture? = null
     private var screenSurface: Surface? = null
 

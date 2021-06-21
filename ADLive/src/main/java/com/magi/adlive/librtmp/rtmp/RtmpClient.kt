@@ -408,7 +408,9 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
     try {
       writer?.flush()
       thread?.join(100)
-    } catch (e: Exception) { }
+    } catch (e: Exception) {
+      Log.e(TAG, "disconnect error", e)
+    }
     thread = HandlerThread(TAG)
     thread?.start()
     thread?.let {

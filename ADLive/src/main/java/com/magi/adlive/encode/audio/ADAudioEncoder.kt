@@ -85,7 +85,7 @@ class ADAudioEncoder(private val getAacData: GetAacData): BaseEncoder(), GetMicr
     }
 
     override fun chooseEncoder(mime: String): MediaCodecInfo? {
-        val mediaCodecInfoList = getAllHardwareEncoders(mime)
+        val mediaCodecInfoList = getAllEncoder(mime)
         ADLogUtil.logD(TAG, "Found encoder $mime count ${mediaCodecInfoList.size}")
 
         for (mci in mediaCodecInfoList) {
