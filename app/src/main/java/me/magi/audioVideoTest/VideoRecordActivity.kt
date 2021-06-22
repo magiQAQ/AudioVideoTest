@@ -18,7 +18,7 @@ class VideoRecordActivity : AppCompatActivity(), ConnectCheckerRtmp{
     private lateinit var liveView: ADLiveView
     private lateinit var size: Size
     private lateinit var livePusher: ADLivePusher
-    private val streamUrl = "rtmp://a.1029.lcps.aodianyun.com/live/1"
+    private val streamUrl = "rtmp://a.1029.lcps.aodianyun.com/live/0"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

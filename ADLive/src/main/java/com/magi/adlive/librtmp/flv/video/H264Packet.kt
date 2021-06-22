@@ -4,6 +4,7 @@ import android.media.MediaCodec
 import android.util.Log
 import com.magi.adlive.librtmp.flv.FlvPacket
 import com.magi.adlive.librtmp.flv.FlvType
+import java.lang.StringBuilder
 import java.nio.ByteBuffer
 import kotlin.experimental.and
 
@@ -29,6 +30,14 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
     SEQUENCE(0x00), NALU(0x01), EO_SEQ(0x02)
   }
 
+  private fun byteArrayOfInts(vararg ints: Int) = ByteArray(ints.size) { pos -> ints[pos].toByte() }
+
+  private val seiContent = byteArrayOfInts(
+    0x06,0x05,0x21,0x6C,0x63,0x70,0x73,0x62,0x35,0x64,0x61,0x39,
+    0x66,0x34,0x36,0x35,0x64,0x33,0x66,0x01,0x0f,0x32,0x30,0x30,0x36,0x32,0x34,0x31,
+    0x34,0x31,0x35,0x33,0x30,0x31,0x32,0x33,0x80
+  )
+
   fun sendVideoInfo(sps: ByteBuffer, pps: ByteBuffer) {
     val mSps = removeHeader(sps)
     val mPps = removeHeader(pps)
@@ -41,6 +50,64 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
     this.sps = spsBytes
     this.pps = ppsBytes
   }
+
+//  fun createFlvVideoPacket(byteBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
+//    byteBuffer.rewind()
+//    val ts = info.presentationTimeUs / 1000
+//    //header is 5 bytes length:
+//    //4 bits FrameType, 4 bits CodecID
+//    //1 byte AVCPacketType
+//    //3 bytes CompositionTime, the cts.
+//    val cts = 0
+//    header[2] = (cts shr 16).toByte()
+//    header[3] = (cts shr 8).toByte()
+//    header[4] = cts.toByte()
+//
+//    var buffer: ByteArray
+//    if (!configSend) {
+//      header[0] = ((VideoDataType.KEYFRAME.value shl 4) or VideoFormat.AVC.value).toByte()
+//      header[1] = Type.SEQUENCE.value
+//
+//      val sps = this.sps
+//      val pps = this.pps
+//      if (sps != null && pps != null) {
+//        val config = VideoSpecificConfig(sps, pps, profileIop)
+//        buffer = ByteArray(config.size + header.size)
+//        config.write(buffer, header.size)
+//      } else {
+//        Log.e(TAG, "waiting for a valid sps and pps")
+//        return
+//      }
+//
+//      System.arraycopy(header, 0, buffer, 0, header.size)
+//      videoPacketCallback.onVideoFrameCreated(FlvPacket(buffer, ts, buffer.size, FlvType.VIDEO))
+//      configSend = true
+//    }
+//    if (configSend){
+//      val headerSize = getHeaderSize(byteBuffer)
+//      if (headerSize == 0) return //invalid buffer or waiting for sps/pps
+//      byteBuffer.rewind()
+//      val validBuffer = removeHeader(byteBuffer, headerSize)
+//      val size = validBuffer.remaining()
+//      buffer = ByteArray(header.size + size + naluSize)
+//
+//      val type: Int = (validBuffer.get(0) and 0x1F).toInt()
+//      var nalType = VideoDataType.INTER_FRAME.value
+//      if (type == VideoNalType.IDR.value || info.flags == MediaCodec.BUFFER_FLAG_KEY_FRAME) {
+//        nalType = VideoDataType.KEYFRAME.value
+//      } else if (type == VideoNalType.SPS.value || type == VideoNalType.PPS.value) {
+//        // we don't need send it because we already do it in video config
+//        return
+//      }
+//      header[0] = ((nalType shl 4) or VideoFormat.AVC.value).toByte()
+//      header[1] = Type.NALU.value
+//      writeNaluSize(buffer, header.size, size)
+//      validBuffer.get(buffer, header.size + naluSize, size)
+//
+//      System.arraycopy(header, 0, buffer, 0, header.size)
+//      videoPacketCallback.onVideoFrameCreated(FlvPacket(buffer, ts, buffer.size, FlvType.VIDEO))
+//    }
+//  }
 
   fun createFlvVideoPacket(byteBuffer: ByteBuffer, info: MediaCodec.BufferInfo) {
     byteBuffer.rewind()
@@ -80,7 +147,8 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
       byteBuffer.rewind()
       val validBuffer = removeHeader(byteBuffer, headerSize)
       val size = validBuffer.remaining()
-      buffer = ByteArray(header.size + size + naluSize)
+      buffer = ByteArray(header.size + seiContent.size + naluSize * 2 + size)
+
 
       val type: Int = (validBuffer.get(0) and 0x1F).toInt()
       var nalType = VideoDataType.INTER_FRAME.value
@@ -92,10 +160,25 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
       }
       header[0] = ((nalType shl 4) or VideoFormat.AVC.value).toByte()
       header[1] = Type.NALU.value
-      writeNaluSize(buffer, header.size, size)
-      validBuffer.get(buffer, header.size + naluSize, size)
-
+      // 写入sei的nalu尺寸
+      writeNaluSize(buffer, header.size, seiContent.size)
+      // 写入sei信息
+      System.arraycopy(seiContent, 0, buffer, header.size + seiContent.size, seiContent.size)
+      // 写入图像nalu的尺寸
+      writeNaluSize(buffer, header.size + naluSize + seiContent.size, size)
+      // 复制nalu部分
+      validBuffer.get(buffer, header.size + naluSize + seiContent.size + naluSize, size)
+      // 复制头部
       System.arraycopy(header, 0, buffer, 0, header.size)
+//      if (buffer.size > 60) {
+//        val builder = StringBuilder()
+//        builder.append(" \n")
+//        for (i in 0..60) {
+//          builder.append(Integer.toHexString(buffer[i].toInt() and 0xff)).append(" ")
+//          if (i == 24) builder.append("\n")
+//        }
+//        Log.w(TAG, builder.toString())
+//      }
       videoPacketCallback.onVideoFrameCreated(FlvPacket(buffer, ts, buffer.size, FlvType.VIDEO))
     }
   }
@@ -120,9 +203,11 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
     val sps = this.sps
     val pps = this.pps
     if (sps != null && pps != null) {
+      //获取NAL header的长度是3还是4
       val startCodeSize = getStartCodeSize(byteBuffer)
       if (startCodeSize == 0) return 0
       val startCode = ByteArray(startCodeSize) { 0x00 }
+      //生成NAL header的byte数组
       startCode[startCodeSize - 1] = 0x01
       val avcHeader = startCode.plus(sps).plus(startCode).plus(pps).plus(startCode)
       if (byteBuffer.remaining() < avcHeader.size) return startCodeSize

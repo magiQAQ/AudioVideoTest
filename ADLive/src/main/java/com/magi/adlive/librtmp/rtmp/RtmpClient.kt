@@ -44,6 +44,8 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
   var isStreaming = false
     private set
 
+  private var isRunning = false
+
   private var url: String? = null
   private var tlsEnabled = false
 
@@ -137,6 +139,7 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
           ?: "").length - commandsManager.streamName.length))
 
       isStreaming = true
+      isRunning = true
       thread = HandlerThread(TAG)
       thread?.start()
       thread?.let {
@@ -150,12 +153,28 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
             val writer = this.writer ?: throw IOException("Invalid writer, Connection failed")
             commandsManager.sendConnect("", writer)
             //read packets until you did success connection to server and you are ready to send packets
-            while (!Thread.interrupted() && !publishPermitted) {
+            while (isStreaming && !publishPermitted) {
               //Handle all command received and send response for it.
               handleMessages()
             }
+            Log.i(TAG, "can push stream")
             //read packet because maybe server want send you something while streaming
-            handleServerPackets()
+            while (isStreaming && !Thread.currentThread().isInterrupted) {
+              handleMessages()
+            }
+            // close connect
+            try {
+              this.reader?.close()
+              writer.flush()
+              commandsManager.sendClose(writer)
+              closeConnection()
+              writer.close()
+              Log.i(TAG, "stream stop")
+            } catch (e: Exception) {
+              Log.e(TAG, "disconnect error", e)
+            }
+            this.reader = null
+            this.writer = null
           } catch (e: Exception) {
             Log.e(TAG, "connection error", e)
             connectCheckerRtmp.onConnectionFailedRtmp("Error configure stream, ${e.message}")
@@ -168,7 +187,7 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
 
   private fun handleServerPackets() {
     try {
-      while (!Thread.interrupted()) {
+      while (isStreaming) {
         handleMessages()
       }
     } catch (e: InterruptedException) {
@@ -400,44 +419,11 @@ class RtmpClient(private val connectCheckerRtmp: ConnectCheckerRtmp) {
 
   private fun disconnect(clear: Boolean) {
     if (isStreaming) rtmpSender.stop(clear)
-    reader?.close()
-    reader = null
+    isRunning = false
     thread?.looper?.thread?.interrupt()
     thread?.looper?.quit()
     thread?.quit()
-    try {
-      writer?.flush()
-      thread?.join(100)
-    } catch (e: Exception) {
-      Log.e(TAG, "disconnect error", e)
-    }
-    thread = HandlerThread(TAG)
-    thread?.start()
-    thread?.let {
-      val h = Handler(it.looper)
-      h.post {
-        try {
-          writer?.let { writer ->
-            commandsManager.sendClose(writer)
-          }
-          writer?.close()
-          writer = null
-          closeConnection()
-        } catch (e: IOException) {
-          Log.e(TAG, "disconnect error", e)
-        } finally {
-          thread?.looper?.quit()
-          return@post
-        }
-      }
-    }
-    try {
-      thread?.join(200) //wait finish sendClose
-      thread?.looper?.thread?.interrupt()
-      thread?.looper?.quit()
-      thread?.quit()
-      thread = null
-    } catch (e: Exception) { }
+    thread?.join(100)
     if (clear) {
       reTries = numRetry
       doingRetry = false
