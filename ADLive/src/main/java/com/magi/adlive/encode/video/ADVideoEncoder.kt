@@ -138,16 +138,16 @@ class ADVideoEncoder(private val getVideoData: GetVideoData): BaseEncoder(), Get
         return encoderCapabilities.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
     }
 
-    private fun chooseColorDynamically(mediaCodecInfo: MediaCodecInfo): FormatVideoEncoder? {
-        for (format in mediaCodecInfo.getCapabilitiesForType(type).colorFormats) {
-            if (format == FormatVideoEncoder.YUV420PLANAR.getFormatCodec()) {
-                return FormatVideoEncoder.YUV420PLANAR
-            } else if (format == FormatVideoEncoder.YUV420SEMIPLANAR.getFormatCodec()) {
-                return FormatVideoEncoder.YUV420SEMIPLANAR
-            }
-        }
-        return null
-    }
+//    private fun chooseColorDynamically(mediaCodecInfo: MediaCodecInfo): FormatVideoEncoder? {
+//        for (format in mediaCodecInfo.getCapabilitiesForType(type).colorFormats) {
+//            if (format == FormatVideoEncoder.YUV420PLANAR.getFormatCodec()) {
+//                return FormatVideoEncoder.YUV420PLANAR
+//            } else if (format == FormatVideoEncoder.YUV420SEMIPLANAR.getFormatCodec()) {
+//                return FormatVideoEncoder.YUV420SEMIPLANAR
+//            }
+//        }
+//        return null
+//    }
 
     override fun start(resetTs: Boolean) {
         forceKey = false

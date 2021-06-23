@@ -48,7 +48,7 @@ class VideoRecordActivity : AppCompatActivity(), ConnectCheckerRtmp{
     }
 
     fun startStream(view: View) {
-        if (livePusher.prepareVideo(1920, 1080, 30, 6000 * 1024, 3)
+        if (livePusher.prepareVideo(1920, 1080, 30, 2500 * 1024, 3)
             && livePusher.prepareAudio()) {
             livePusher.startStreaming(streamUrl)
         }

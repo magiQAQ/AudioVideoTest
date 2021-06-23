@@ -163,7 +163,7 @@ class H264Packet(private val videoPacketCallback: VideoPacketCallback) {
       // 写入sei的nalu尺寸
       writeNaluSize(buffer, header.size, seiContent.size)
       // 写入sei信息
-      System.arraycopy(seiContent, 0, buffer, header.size + seiContent.size, seiContent.size)
+      System.arraycopy(seiContent, 0, buffer, header.size + naluSize, seiContent.size)
       // 写入图像nalu的尺寸
       writeNaluSize(buffer, header.size + naluSize + seiContent.size, size)
       // 复制nalu部分
